@@ -1564,13 +1564,31 @@ $("adminPlayerReportsList").addEventListener("click",async function(event){
  }catch(err){if(details)details.textContent="Could not load game: "+(err.message||err);}
  finally{button.disabled=false;}
 });
+/* Security reports load when their hub or folder is visible, not on admin landing.
+   Account totals, users and feature controls still refresh normally. */
+function kfRefreshVisibleAdminSecurity(){
+ if(!currentUser || currentUser.id!==adminOwnerId)return;
+ if(!$("adminSecurityHubView").hidden){
+  loadAdminPlayerReportsCount();
+  loadAdminMoveAuditAlerts();
+  loadAdminClockReports();
+  loadAdminStreakReviews();
+  loadAdminSuspiciousPlayers();
+ }else if(!$("adminClockReportsSection").hidden){
+  loadAdminClockReports();
+ }else if(!$("adminMoveAuditSection").hidden){
+  loadAdminMoveAuditAlerts();
+ }else if(!$("adminStreakReviewsSection").hidden){
+  loadAdminStreakReviews();
+ }else if(!$("adminSuspiciousPlayersSection").hidden){
+  loadAdminSuspiciousPlayers();
+ }else if(!$("adminPlayerReportsSection").hidden){
+  loadAdminPlayerReports();
+ }
+}
 async function loadAdminPanel(){
  if(!currentUser||currentUser.id!==adminOwnerId)return;
- loadAdminMoveAuditAlerts();
- loadAdminClockReports();
- loadAdminPlayerReportsCount();
- loadAdminSuspiciousPlayers();
- loadAdminStreakReviews();
+ kfRefreshVisibleAdminSecurity();
  $("adminUsers").innerHTML='<div class="admin-loading">Loading registered users…</div>';
  $("adminFeatures").innerHTML='<div class="admin-loading">Loading features…</div>';
  $("adminOverview").innerHTML='<div class="admin-stat registered-users-card" role="button" tabindex="0" aria-label="Show all registered users, newest first"><span>Registered users</span><strong>Loading…</strong></div><div class="admin-stat"><span>Banned users</span><strong>—</strong></div><div class="admin-stat security-reports-card" role="button" tabindex="0" aria-label="Open security reports"><span>🛡️ Security Reports</span><strong>›</strong></div><div class="admin-stat feature-management-card" role="button" tabindex="0" aria-label="Manage game features"><span>⚙️ Feature Management</span><strong>›</strong></div>';
@@ -1594,10 +1612,6 @@ async function loadAdminPanel(){
   var firstValue=$("adminOverview").querySelector(".admin-stat strong");
   $("adminOverview").innerHTML='<div class="admin-stat registered-users-card" role="button" tabindex="0" aria-label="Show all registered users, newest first"><span>Registered users</span><strong>'+(firstValue?adminEscape(firstValue.textContent):'—')+'</strong></div><div class="admin-stat"><span>Banned users</span><strong>'+fmtStat(banned)+'</strong></div><div class="admin-stat security-reports-card" role="button" tabindex="0" aria-label="Open security reports"><span>🛡️ Security Reports</span><strong>›</strong></div><div class="admin-stat feature-management-card" role="button" tabindex="0" aria-label="Manage game features"><span>⚙️ Feature Management</span><strong>›</strong></div>';
   renderAdminUsers();
-  loadAdminPlayerReportsCount();
-  loadAdminSuspiciousPlayers();
-  loadAdminStreakReviews();
-   loadAdminMoveAuditAlerts();
  }catch(e){
   $("adminUsers").innerHTML='<div class="admin-empty">Could not load user list: '+adminEscape(e.message||e)+'</div>';
   console.error("Admin user list failed:",e);
@@ -1699,7 +1713,7 @@ function showSecurityHub(){$("adminClockReportsSection").hidden=true;
  $("adminPageTitle").textContent="🛡️ Security Reports";
  $("adminPageSubtitle").textContent="Reports, verification alerts and investigations · Admin only";
  $("adminBackToOverview").hidden=false;
- loadAdminPlayerReportsCount();loadAdminMoveAuditAlerts();loadAdminClockReports();loadAdminStreakReviews();loadAdminSuspiciousPlayers();
+ kfRefreshVisibleAdminSecurity();
  window.scrollTo({top:0,behavior:"smooth"});
 }
 function showShadowMoveAudit(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;
