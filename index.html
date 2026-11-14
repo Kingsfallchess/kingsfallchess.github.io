@@ -4402,8 +4402,8 @@ function tickClock(){
   paintClocks();
 }
 
-// TEMP ALPHA TEST: tenths refresh
-setInterval(tickClock, 100);
+// Refresh displayed clocks four times per second (server timing remains authoritative).
+setInterval(tickClock, 250);
 
 /* ===== FIRST MOVE DEADLINE (UI only; database owns the deadline/result) ===== */
 function updateFirstMoveDeadlineUI(){
