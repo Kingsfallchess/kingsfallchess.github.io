@@ -2465,8 +2465,32 @@ function stopFullscreenNameMarquee(){
   });
 }
 
+/* Visual-only tournament crest, relying exclusively on cached bracket/match data. */
+function kfUpdateRoyalMatchBadges(row){
+ var isTournament=!!(row&&row.is_tournament),isFinal=false;
+ if(isTournament&&tournActiveMatch&&tournActiveMatch.id===row.tournament_match_id&&
+    tournBracketRendered&&tournBracketRendered.id===tournActiveMatch.tournament_id){
+   var size=Number(tournBracketRendered.bracket_size),round=Number(tournActiveMatch.round);
+   if(Number.isFinite(size)&&size>=2&&Number.isFinite(round)){
+     var rounds=1;
+     while(Math.pow(2,rounds)<size)rounds++;
+     isFinal=round===rounds;
+   }
+ }
+ ["gfsTopMatchBadge","gfsBotMatchBadge"].forEach(function(id){
+   var badge=$(id);
+   if(!badge)return;
+   badge.hidden=!isTournament;
+   if(!isTournament)return;
+   badge.textContent=isFinal?"👑":"🏆";
+   badge.classList.toggle("is-final",isFinal);
+   badge.title=isFinal?"Tournament final":"Tournament match";
+   badge.setAttribute("aria-label",badge.title);
+ });
+}
   function enterFullscreenGame(row){
   document.body.classList.add("game-focus");
+  kfUpdateRoyalMatchBadges(row);
   fsPlayerColor = (row.white_id === currentUser.id) ? "w" : "b";
   flipped = (fsPlayerColor === "b");
   _boardBuilt = false;
