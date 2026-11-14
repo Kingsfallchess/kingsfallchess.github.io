@@ -4329,9 +4329,10 @@ function tickClock(){
   if(computerMode || !game || (game.game_over() && !kfPendingClockMove) || clockExpired){ paintClocks(); return; }
   if(!onlineGameId || !onlineGame || onlineGame.status !== "active"){ paintClocks(); return; }
 
-  // BETA FOLLOW-UP: the new turn does not officially begin until validation
-  // has committed. Do not consume the opponent's clock during that interval.
-  if(kfPendingClockMove){ paintClocks(); return; }
+  // During a pending local move, the client already has a provisional
+  // next-turn monotonic anchor. Keep its clock visibly counting instead
+  // of freezing both displays while the server validates the move.
+  // Timeout claims remain disabled for unconfirmed moves below.
 
   // The server clock starts at clock_started_at, independently of player
   // page-entry timestamps and the visual VS/board transition. Never pause the
@@ -7801,6 +7802,8 @@ function kfStartOptimisticClock(m){
   clockPerfAnchor=performance.now();
   lastClockAt=Date.now();
   if(onlineGame)onlineGame.turn=game.turn();
+  // Show the next active clock immediately; the 100 ms timer continues it.
+  paintClocks();
 }
 // Paint only squares affected by the incoming move and the premove.
 // The full board/history repaint remains scheduled by submitMove.
