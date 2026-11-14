@@ -375,6 +375,7 @@ body.computer-mode .board-label span:first-child{color:var(--muted)}
   position:relative;display:flex;align-items:center;justify-content:center;
   width:100%;height:100%;min-width:0;min-height:0;padding:0;margin:0;
   border:0;border-radius:0;appearance:none;overflow:hidden;
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
 }
 .light{background:linear-gradient(135deg,var(--board-light1),var(--board-light2))}
 .dark{background:linear-gradient(135deg,var(--board-dark1),var(--board-dark2))}
@@ -7828,6 +7829,38 @@ function kfPaintPremoveSquaresImmediately(row,pm){
       "linear-gradient(#e5bd6545,#e5bd6545)":"";
   }
 }
+// Render the just-played move before the deferred full board redraw and RPC.
+// Only the changed squares are touched. Server validation and clock authority
+// are unchanged; submitMove still rolls back rejected moves.
+function kfPaintLocalMoveImmediately(m){
+  if(!m||!game||!_boardBuilt||_boardFlipped!==flipped)return;
+  var squares=[m.from,m.to];
+  var flags=m.flags||"";
+  if(flags.indexOf("e")!==-1)squares.push(m.to[0]+m.from[1]); // en passant
+  if(flags.indexOf("k")!==-1){ // kingside castling rook
+    squares.push(m.color==="w"?"h1":"h8",m.color==="w"?"f1":"f8");
+  }
+  if(flags.indexOf("q")!==-1){ // queenside castling rook
+    squares.push(m.color==="w"?"a1":"a8",m.color==="w"?"d1":"d8");
+  }
+  var seen=Object.create(null);
+  for(var i=0;i<squares.length;i++){
+    var sqName=squares[i],b=_sqEls[sqName];
+    if(!b||seen[sqName])continue;
+    seen[sqName]=true;
+    var oldPiece=b.querySelector("svg");
+    if(oldPiece)oldPiece.remove();
+    var piece=game.get(sqName);
+    if(piece)b.insertAdjacentHTML("afterbegin",svg(piece));
+    var oldMarker=b.querySelector(".dot,.ring");
+    if(oldMarker)oldMarker.remove();
+    b._kfMarkupCache=null;
+    b.classList.remove("selected");
+    b.setAttribute("aria-label",sqName+(piece?", "+(piece.color==="w"?"white":"black")+" "+names[piece.type]:""));
+    b.style.backgroundImage=(sqName===m.from||sqName===m.to)?
+      "linear-gradient(#e5bd6545,#e5bd6545)":"";
+  }
+}
 /* ===== CLICK SQUARE ===== */
 async function clickSquare(s){
   if(!game) return;
@@ -7920,6 +7953,9 @@ if(m){
   last = {from: m.from, to: m.to};
   selected = null;
   targets = [];
+  // Paint the two changed piece squares synchronously, without waiting for
+  // setTimeout(draw, 0), chess result checks or the network response.
+  if(onlineGameId)kfPaintLocalMoveImmediately(m);
 
  kfStartOptimisticClock(m);
 
