@@ -686,6 +686,26 @@ async function loadLeaderboard(){
 $("lbRefresh").onclick = loadLeaderboard;
 
 /* ============ TOURNAMENT STATE ============ */
+// Coalesce identical in-flight tournament reads, never cache settled results.
+// Realtime transitions, manual views and match recovery use fresh reads.
+var kfNextTournamentRead=null, kfNextTournamentReadKey=null;
+function kfGetTournamentStateOnce(forceFresh){
+  var key=currentUser ? "user:"+currentUser.id : "public";
+  if(!forceFresh && kfNextTournamentRead && kfNextTournamentReadKey===key)
+    return kfNextTournamentRead;
+  var promise=Promise.resolve(sb.rpc(currentUser ? "kf_get_next_tournament" : "kf_get_current_tournament_public"));
+  kfNextTournamentRead=promise;
+  kfNextTournamentReadKey=key;
+  function clear(){
+    if(kfNextTournamentRead===promise){
+      kfNextTournamentRead=null;
+      kfNextTournamentReadKey=null;
+    }
+  }
+  promise.then(clear,clear);
+  return promise;
+}
+
 async function loadLastTournamentState(){
   if(!sb) return;
   try{
@@ -701,11 +721,11 @@ async function loadLastTournamentState(){
   } catch(err){ console.warn("Last tournament state error:", err); }
 }
 
-async function loadTournamentState(recoverAssignedMatch){
+async function loadTournamentState(recoverAssignedMatch,forceFresh){
   if(!sb) return;
   var requestId = ++tournStateRequestId;
   try{
-    var res = await sb.rpc(currentUser ? "kf_get_next_tournament" : "kf_get_current_tournament_public");
+    var res = await kfGetTournamentStateOnce(!!forceFresh || !!recoverAssignedMatch);
     if(requestId !== tournStateRequestId) return;
     if(res.error) throw res.error;
     var nextTournament = res.data;
@@ -805,7 +825,7 @@ function startTournChannel(){
     })
     .on("postgres_changes",{event:"*",schema:"public",table:"kf_tournaments"}, function(p){
       if(p.eventType==="INSERT"){
-        if(!document.hidden)loadTournamentState();
+        if(!document.hidden)loadTournamentState(false,true);
       } else if(p.new){
         handleTournUpdate(p.new);
       }
@@ -866,7 +886,7 @@ function handleTournUpdate(row){
     updateTournButton();
     if(!document.hidden&&$("tournDialog").open && tournView === "next") refreshTournLive();
     if(!document.hidden && (row.status==="completed" || row.status==="cancelled")){
-      setTimeout(function(){if(!document.hidden)loadTournamentState();},1500);
+      setTimeout(function(){if(!document.hidden)loadTournamentState(false,true);},1500);
     }
   }
 }
@@ -961,7 +981,7 @@ function openTournDialog(){
   tournView = "next";
   renderTournDialog();
   $("tournDialog").showModal();
-  loadTournamentState();
+  loadTournamentState(false,true);
 }
 
 $("tournNextViewBtn").onclick = function(){
@@ -969,7 +989,7 @@ $("tournNextViewBtn").onclick = function(){
   $("tournNextViewBtn").classList.add("active");
   $("tournLastViewBtn").classList.remove("active");
   renderTournDialog();
-  loadTournamentState();
+  loadTournamentState(false,true);
 };
 
 $("tournLastViewBtn").onclick = async function(){
@@ -1584,7 +1604,7 @@ document.addEventListener("visibilitychange", function(){
   if(kfQueueSearching)pollQueue();
   // Refresh cached tournament data once, then check for an assigned match.
   window._lastTournRefresh=Date.now();
-  (currentUser ? kfRecoverTournamentMatch() : loadTournamentState())
+  (currentUser ? kfRecoverTournamentMatch() : loadTournamentState(false,true))
     .catch(function(err){console.warn("Tournament resume refresh failed:",err);});
   loadFeatureFlags();
   loadChampion();
