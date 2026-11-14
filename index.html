@@ -7484,7 +7484,7 @@ function draw(){
       }
       var b = _sqEls[s];
       if(!b) continue;
-      b.innerHTML = "";
+      var kfSquareMarkupCache = "";
       b.classList.toggle("selected", selected === s);
       var pmVisible=!!(onlineGameId&&onlineGame&&currentUser&&onlineGame.status==="active"&&
         (onlineGame.white_id===currentUser.id?"w":onlineGame.black_id===currentUser.id?"b":null)!==game.turn());
@@ -7505,17 +7505,19 @@ function draw(){
       }
       var aria = s + (p ? ", " + (p.color === "w" ? "white" : "black") + " " + names[p.type] : "");
       b.setAttribute("aria-label", aria);
-      if(p) b.innerHTML = svg(p);
+      if(p) kfSquareMarkupCache += svg(p);
       if(targetsSet[s] && !humilSelecting){
-        var mark = document.createElement("span");
-        mark.className = p ? "ring" : "dot";
-        b.appendChild(mark);
+        kfSquareMarkupCache += p ? '<span class="ring"></span>' : '<span class="dot"></span>';
       }
       if((flipped ? r === 7 : r === 0) || c === (flipped ? 7 : 0)){
-        var co = document.createElement("span");
-        co.className = "coords";
-        co.textContent = (c === (flipped ? 7 : 0) ? 8-r : files[c]);
-        b.appendChild(co);
+        kfSquareMarkupCache += '<span class="coords">' +
+          (c === (flipped ? 7 : 0) ? 8-r : files[c]) + '</span>';
+      }
+      // Avoid rebuilding all 64 piece SVGs on unchanged state.
+      // Fast premove paints explicitly invalidate the affected square.
+      if(b._kfMarkupCache !== kfSquareMarkupCache){
+        b.innerHTML = kfSquareMarkupCache;
+        b._kfMarkupCache = kfSquareMarkupCache;
       }
     }
   }
@@ -7531,8 +7533,13 @@ function draw(){
   updateHistory();
 }
 
+var kfLastHistorySignature = null;
 function updateHistory(){
   var h = game.history();
+  // Do not rebuild the entire move list on piece selections or clock refreshes.
+  var signature = h.join("\u001f");
+  if(kfLastHistorySignature === signature) return;
+  kfLastHistorySignature = signature;
   if(!h.length){ historyEl.textContent = "No moves yet."; return; }
   historyEl.innerHTML = "";
   for(var i=0;i<h.length;i+=2){
@@ -7809,6 +7816,8 @@ function kfPaintPremoveSquaresImmediately(row,pm){
     if(!b||seen[s])continue;
     seen[s]=true;
     var p=game.get(s);
+    // Fast partial DOM paints must not leave stale full-draw markup caches.
+    b._kfMarkupCache=null;
     // Keep the coordinates element intact where it already exists.
     var oldPiece=b.querySelector("svg");
     if(oldPiece)oldPiece.remove();
