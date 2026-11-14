@@ -4181,12 +4181,7 @@ while(kfPremoveQueued&&kfPremoveQueued.expectedFen&&
 }
 // If the queue was accepted by PostgreSQL, do not race the same move
 // through the old browser RPC when an intermediate opponent snapshot arrives.
-var kfPremoveExecuted=!kfServerCommittedPremove&&kfHadPremove&&
-  !(kfPremoveQueued&&(kfPremoveQueued.serverPending||
-    (kfPremoveQueued.serverReady&&
-      (!kfPremoveQueued.terminalOpponentFens||
-       kfPremoveQueued.terminalOpponentFens.indexOf(row.fen)===-1))))&&
-  kfMaybeExecuteLocalPremove(row);
+var kfPremoveExecuted=false;
 if(kfHadPremove && kfPremoveQueued && kfPremoveQueued.serverReady){
   // Realtime may deliver the opponent's intermediate update while the DB
   // trigger is still committing our premove. Verify the final server row
@@ -4214,9 +4209,9 @@ if(kfMultiPremovePending&&row.status==="active"&&currentUser&&
    row.turn===(row.white_id===currentUser.id?"w":"b")&&
    kfMultiPremoveQueue.length&&!submittingMove&&!kfPendingClockMove){
   kfMultiPremovePending=false;
+  // PostgreSQL is the only premove executor. Re-arm for the next turn.
   kfPremoveQueued=kfMultiPremoveQueue[0];
-  kfPremoveExecuted=!!kfMaybeExecuteLocalPremove(row);
-  if(!kfPremoveExecuted)kfMultiReset();
+  kfMultiPremovePending=true;
 }
 if(!kfPremoveExecuted &&
    (kfBoardNeedsDraw || (row.last_move_at!==prevLastMoveAt && game && row.fen===game.fen())))
@@ -7634,15 +7629,7 @@ function kfMultiAdvance(row){
   if(kfPairStored&&kfMultiPremoveQueue.length&&afterFen){
     var next=kfMultiPremoveQueue[0];
     next.expectedFen=afterFen;
-    // Keep only branches for the actual first premove outcome. These can
-    // become the new first-slot candidates if a user refills the second slot.
-    if(old.kfPairSecondCandidates){
-      var branches=old.kfPairSecondCandidates.filter(function(x){
-        return x.expected_fen===afterFen;
-      });
-      next.kfPairFirst={from:next.from,to:next.to,
-        promotion:next.promotion||null,candidates:branches};
-    }
+    next.kfPairFirst={from:next.from,to:next.to,promotion:next.promotion||null};
     kfPremoveQueued=next;
     next.serverReady=true;
     kfMultiPremovePending=false;
@@ -7663,48 +7650,6 @@ function kfMultiArm(row){
   kfPremoveQueued=kfMultiPremoveQueue[0];
   kfQueueServerPremove(kfPremoveQueued);
 }
-function kfBuildPremoveCandidates(pm){
-  if(!onlineGame||!game||!pm)return [];
-  var simulation=new Chess();
-  try{
-    if(onlineGame.pgn){
-      if(!simulation.load_pgn(onlineGame.pgn))return [];
-    }
-    if(simulation.fen()!==onlineGame.fen)return [];
-  }catch(e){return [];}
-  var choices=[];
-  try{
-    var replies=simulation.moves({verbose:true});
-    pm.terminalOpponentFens=[];
-    for(var i=0;i<replies.length;i++){
-      var opponent=replies[i],played=null,reply=null;
-      try{
-        played=simulation.move({from:opponent.from,to:opponent.to,
-          promotion:opponent.promotion||"q"});
-        if(!played||simulation.game_over())continue;
-        var oppFen=simulation.fen();
-        reply=simulation.move({from:pm.from,to:pm.to,
-          promotion:pm.promotion||"q"});
-        if(!reply)continue;
-        if(simulation.game_over() && !simulation.in_checkmate()){
-          // Non-mate endings retain their verified fallback path.
-          pm.terminalOpponentFens.push(oppFen);
-          continue;
-        }
-        // A checkmating premove uses the same fast server queue as
-        // every other premove. PostgreSQL independently verifies mate.
-        choices.push({opponent_fen:oppFen,from:pm.from,to:pm.to,
-          promotion:pm.promotion||null,fen:simulation.fen(),
-          pgn:simulation.pgn(),san:reply.san,
-          new_turn:simulation.turn(),status:"active"});
-      }catch(e){}finally{
-        if(reply)simulation.undo();
-        if(played)simulation.undo();
-      }
-    }
-  }catch(e){return [];}
-  return choices;
-}
 function kfCancelQueuedServerPremove(){
   kfPremoveQueueSerial++;
   kfPairStored=false;
@@ -7712,39 +7657,7 @@ function kfCancelQueuedServerPremove(){
   // Serialized with in-flight queue writes: a delayed old response must
   // never reinstall a cancelled premove.
   if(sb&&gid)kfPairRequestChain=kfPairRequestChain.catch(function(){})
-    .then(function(){return sb.rpc("kf_cancel_premove_pair_v2",{p_game_id:gid});});
-}
-// Future positions are prepared before sending the pair. Every candidate is
-// tied to its exact prior FEN and checked again by PostgreSQL at execution.
-async function kfBuildSecondPremoveCandidates(first,second,serial,gid){
-  var result=[];
-  for(var i=0;i<first.length;i++){
-    if(serial!==kfPremoveQueueSerial||onlineGameId!==gid)return null;
-    var sim=new Chess(),branch=first[i];
-    try{if(!sim.load_pgn(branch.pgn)||sim.fen()!==branch.fen)continue;}catch(e){continue;}
-    var moves=sim.moves({verbose:true});
-    for(var j=0;j<moves.length;j++){
-      var opponent=null,reply=null;
-      try{
-        opponent=sim.move({from:moves[j].from,to:moves[j].to,
-          promotion:moves[j].promotion||"q"});
-        if(!opponent||sim.game_over())continue;
-        var opponentFen=sim.fen();
-        reply=sim.move({from:second.from,to:second.to,promotion:second.promotion||"q"});
-        if(!reply||sim.game_over()&&!sim.in_checkmate())continue;
-        result.push({expected_fen:branch.fen,opponent_fen:opponentFen,
-          fen:sim.fen(),pgn:sim.pgn(),san:reply.san,
-          new_turn:sim.turn(),status:"active"});
-        if(result.length>4096)return null;
-      }catch(e){}finally{
-        if(reply)sim.undo();
-        if(opponent)sim.undo();
-      }
-    }
-    // Yield between branches so tapping and painting stay responsive.
-    if(i%8===7)await new Promise(function(resolve){setTimeout(resolve,0);});
-  }
-  return result;
+    .then(function(){return sb.rpc("kf_cancel_premove_compact_v3",{p_game_id:gid});});
 }
 // The client stores at most two *moves*, never speculative opponent FEN/PGN.
 // PostgreSQL generates the authoritative successor position on execution.
@@ -7768,9 +7681,9 @@ function kfQueueServerPremove(pm){
        kfPremoveQueued!==pm)return;
     pm.serverPending=false;
     pm.serverReady=!res.error&&res.data===true;
-    if(!pm.serverReady&&onlineGame&&onlineGame.status==="active"&&
-       currentUser&&onlineGame.turn===(onlineGame.white_id===currentUser.id?"w":"b")){
-      if(!kfMaybeExecuteLocalPremove(onlineGame)){kfMultiReset();draw();}
+    if(!pm.serverReady&&onlineGame&&onlineGame.status==="active"){
+      // Never submit an unconfirmed premove through the normal move RPC.
+      kfMultiReset();draw();
     }
   }).catch(function(){pm.serverPending=false;});
   if(kfMultiPremoveQueue.length===2)kfQueueSecondServerPremove();
@@ -7925,32 +7838,6 @@ function kfPaintPremoveSquaresImmediately(row,pm){
     b.style.backgroundImage=(s===pm.from||s===pm.to)?
       "linear-gradient(#e5bd6545,#e5bd6545)":"";
   }
-}
-function kfMaybeExecuteLocalPremove(row){
-  if(!row||!kfPremoveQueued||!game||!currentUser||submittingMove||kfPendingClockMove||
-      row.id!==onlineGameId||row.status!=="active"||kfPremoveGameId!==row.id)return;
-  var color=row.white_id===currentUser.id?"w":row.black_id===currentUser.id?"b":null;
-  if(!color||row.turn!==color||game.turn()!==color||game.fen()!==row.fen)return;
-  var pm=kfPremoveQueued;
-  kfMultiAdvance(row);
-  var move=null;
-  try{move=game.move({from:pm.from,to:pm.to,promotion:pm.promotion||"q"});}catch(e){}
-  if(!move){
-    kfMultiReset();
-    return false;
-  }
-  last={from:move.from,to:move.to};
-  selected=null;targets=[];
-  var moveStartedAt=performance.now();
-  kfStartOptimisticClock(move);
-  // Show the actual premove on the board before any async RPC work.
-  // The following submitMove still schedules the complete paint.
-  kfPaintPremoveSquaresImmediately(row,pm);
-  // submitMove schedules the board repaint; avoid a redundant synchronous draw
-  // before dispatching the premove request.
-  // To the server this is a regular move with an optional clock minimum.
-  submitMove(move,Math.floor(clockWhite),Math.floor(clockBlack),moveStartedAt,true);
-  return true;
 }
 /* ===== CLICK SQUARE ===== */
 async function clickSquare(s){
