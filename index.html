@@ -7032,7 +7032,7 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
        !kfPremoveQueued.serverPending&&!kfPremoveQueued.serverReady&&
        !kfPremoveQueued.expectedFen&&onlineGame.turn!==m.color){
       kfQueueServerPremove(kfPremoveQueued);
-      // Server queue publication is handled by kfQueueServerPremove.
+      if(kfMultiPremoveQueue.length===2)kfQueueSecondServerPremove();
     }
 
   } catch(err) {
@@ -7633,8 +7633,7 @@ function kfMultiAdvance(row){
     kfPremoveQueued=next;
     next.serverReady=true;
     kfMultiPremovePending=false;
-    // Remaining premoves are already queued in PostgreSQL.
-    kfPairStored=true;
+    kfPairStored=false;
   }else{
     kfPairStored=false;
     kfPremoveQueued=null;
@@ -7642,7 +7641,7 @@ function kfMultiAdvance(row){
   }
 }
 function kfMultiArm(row){
-  if(kfPairStored && kfMultiPremoveQueue.length)return;
+  if(kfPairStored && kfMultiPremoveQueue.length===2)return;
   if(!kfMultiPremovePending||!currentUser||row.status!=="active")return;
   var mine=row.white_id===currentUser.id?"w":row.black_id===currentUser.id?"b":null;
   if(!mine||row.turn===mine)return;
@@ -7660,7 +7659,7 @@ function kfCancelQueuedServerPremove(){
   if(sb&&gid)kfPairRequestChain=kfPairRequestChain.catch(function(){})
     .then(function(){return sb.rpc("kf_cancel_premove_compact_v3",{p_game_id:gid});});
 }
-// The client stores at most three *moves*, never speculative opponent FEN/PGN.
+// The client stores at most two *moves*, never speculative opponent FEN/PGN.
 // PostgreSQL generates the authoritative successor position on execution.
 function kfQueueServerPremove(pm){
   if(!sb||!onlineGame||!onlineGameId||!pm)return;
@@ -7687,35 +7686,33 @@ function kfQueueServerPremove(pm){
       kfMultiReset();draw();
     }
   }).catch(function(){pm.serverPending=false;});
-  if(kfMultiPremoveQueue.length>1)kfQueueAdditionalServerPremoves();
+  if(kfMultiPremoveQueue.length===2)kfQueueSecondServerPremove();
 }
-function kfQueueAdditionalServerPremoves(){
-  if(!sb||kfMultiPremoveQueue.length<2||kfMultiPremoveQueue.length>3||
-     !onlineGame||!onlineGameId)return;
-  var pending=kfMultiPremoveQueue.slice(),firstPm=pending[0];
-  if(!firstPm.kfPairFirst||!firstPm.expectedFen)return;
-  var gid=onlineGameId,expected=firstPm.expectedFen;
+function kfQueueSecondServerPremove(){
+  if(!sb||kfMultiPremoveQueue.length!==2||!onlineGame||!onlineGameId)return;
+  var firstPm=kfMultiPremoveQueue[0],secondPm=kfMultiPremoveQueue[1];
+  var first=firstPm.kfPairFirst,gid=onlineGameId;
+  if(!first||!firstPm.expectedFen)return;
+  var expected=firstPm.expectedFen;
   var serial=++kfPremoveQueueSerial;
   firstPm.serverPending=true;
-  var items=pending.map(function(pm){
-    return {from:pm.from,to:pm.to,promotion:pm.promotion||null};
-  });
-  // Serialize upgrades so a two-slot request cannot overwrite a newer
-  // three-slot queue. No opponent variations are generated.
+  var second={from:secondPm.from,to:secondPm.to,promotion:secondPm.promotion||null};
+  // The second queue upgrade is ordered behind the first write, so a
+  // delayed single-slot response cannot overwrite the two-slot queue.
   kfPairRequestChain=kfPairRequestChain.catch(function(){})
     .then(function(){
       return sb.rpc("kf_queue_premove_compact_v3",{
-        p_game_id:gid,p_expected_fen:expected,p_moves:items
+        p_game_id:gid,p_expected_fen:expected,p_moves:[first,second]
       });
     });
   kfPairRequestChain.then(function(res){
     if(serial!==kfPremoveQueueSerial||onlineGameId!==gid||
-       pending.length!==kfMultiPremoveQueue.length||
-       pending.some(function(pm,i){return pm!==kfMultiPremoveQueue[i];}))return;
+       kfMultiPremoveQueue[0]!==firstPm||
+       kfMultiPremoveQueue[1]!==secondPm)return;
     firstPm.serverPending=false;
     if(!res.error&&res.data===true){
-      kfPairStored=true;
-      pending.forEach(function(pm){pm.serverReady=true;});
+      kfPairStored=true;firstPm.serverReady=true;
+      secondPm.serverReady=true;
     }
   }).catch(function(){firstPm.serverPending=false;});
 }
@@ -7769,8 +7766,8 @@ async function kfHandlePremoveSquare(square,color){
   if(!kfPremoveSelected)return;
   var from=kfPremoveSelected;kfPremoveSelected=null;
   if(!kfPremoveGeometry(from,square,color)){draw();return;}
-  if(kfMultiPremoveQueue.length>=3){
-    say("Maximum three premoves.",{silentToast:true});draw();return;
+  if(kfMultiPremoveQueue.length>=2){
+    say("Maximum two premoves.",{silentToast:true});draw();return;
   }
   var src=kfProjectedPiece(from),promotion=null;
   if(src.type==="p"&&square[1]===(color==="w"?"8":"1")){
@@ -7784,9 +7781,9 @@ async function kfHandlePremoveSquare(square,color){
     kfPremoveQueued=pm;
     // Selection can precede confirmation, but never send an unconfirmed FEN.
     if(!submittingMove&&!kfPendingClockMove)kfQueueServerPremove(pm);
-  }else if(kfMultiPremoveQueue.length>=2){
-    // Send the complete pending two- or three-slot queue.
-    kfQueueAdditionalServerPremoves();
+  }else if(kfMultiPremoveQueue.length===2){
+    // Preparation is asynchronous; the server still owns actual execution.
+    kfQueueSecondServerPremove();
   }
   draw();
 }
