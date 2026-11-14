@@ -655,15 +655,14 @@ function draw(){
       b.classList.toggle("kf-premove-queued",pmVisible&&!!premoveFromSquares[s]);
       b.classList.remove("humil-dim", "humil-target");
       b.style.backgroundImage = "";
+      b.classList.toggle("kf-last-from",!!(last && last.from===s && !humilSelecting));
+      b.classList.toggle("kf-last-to",!!(last && last.to===s && !humilSelecting));
       if(humilSelecting){
         if(isHumilEligiblePiece(s)){
           b.classList.add("humil-target");
         } else {
           b.classList.add("humil-dim");
         }
-      }
-      if(last && (last.from === s || last.to === s) && !humilSelecting){
-        b.style.backgroundImage = "linear-gradient(#e5bd6545,#e5bd6545)";
       }
       var aria = s + (p ? ", " + (p.color === "w" ? "white" : "black") + " " + names[p.type] : "");
       b.setAttribute("aria-label", aria);
