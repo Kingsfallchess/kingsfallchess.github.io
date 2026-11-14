@@ -4518,7 +4518,7 @@ var kfClockDisplayTimer=null;
 function kfSetClockDisplayVisibility(){
   if(kfClockDisplayTimer){clearInterval(kfClockDisplayTimer);kfClockDisplayTimer=null;}
   if(document.hidden)return;
-  kfClockDisplayTimer=setInterval(tickClock,250);
+  kfClockDisplayTimer=setInterval(tickClock,100);
 }
 kfSetClockDisplayVisibility();
 
