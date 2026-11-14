@@ -1392,6 +1392,133 @@ body.vip-board-sunset{--board-light1:#ffd9c8;--board-light2:#f7bea2;--board-dark
 .square.kf-premove-from { outline:3px solid #64cfff; outline-offset:-3px; }
 .square.kf-premove-to { box-shadow:inset 0 0 0 4px #64cfff; }
 .square.kf-premove-queued { background-image:linear-gradient(#25abff55,#25abff55) !important; }
+
+/* Kingsfall compact full-screen player controls (mobile) */
+@media(max-width:900px){
+  /* Keep the chessboard as large as the available screen permits. */
+  .gfs-board-wrap #board{
+    width:min(100%,calc(100dvh - 200px));
+    max-width:100%;
+  }
+  .gfs-topbar{
+    padding:8px 12px;
+    min-height:72px;
+    gap:8px;
+  }
+  .gfs-topbar .gfs-avatar{width:48px;height:48px;border-width:2px}
+  .gfs-topbar .gfs-clock{
+    font-size:clamp(21px,5.6vw,27px);
+    letter-spacing:.25px;
+    padding:6px 9px;
+  }
+  /* One player/clock row, one three-button row; no stacked controls. */
+  .gfs-bottombar{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    grid-template-rows:auto auto auto;
+    column-gap:8px;
+    row-gap:8px;
+    align-items:center;
+    justify-content:stretch;
+    min-height:0;
+    padding:10px 12px 12px;
+    background:linear-gradient(165deg,#340f1b,#220910 55%,#18060c);
+    border-top:1px solid #643244;
+    box-shadow:0 -6px 20px rgba(0,0,0,.12);
+  }
+  .gfs-bottombar .gfs-left,
+  .gfs-bottombar .gfs-clock-controls{display:contents}
+  .gfs-bottombar .gfs-right{
+    grid-column:1 / 3;
+    grid-row:1;
+    width:100%;
+    min-width:0;
+    grid-template-columns:46px minmax(0,1fr) auto;
+    column-gap:8px;
+    row-gap:3px;
+    align-self:center;
+  }
+  .gfs-bottombar .gfs-profile>.gfs-avatar{
+    width:46px;height:46px;box-sizing:border-box;
+    border-width:2px;margin-right:0;
+  }
+  .gfs-bottombar .gfs-info .gfs-name{
+    font-size:clamp(13px,3.5vw,16px);
+    text-align:left;
+    min-width:0;
+  }
+  .gfs-bottombar .gfs-info .gfs-stats{
+    justify-content:flex-start;
+    gap:5px;
+    font-size:10px;
+  }
+  .gfs-bottombar .gfs-right>.gfs-humil-badge{
+    grid-column:2 / 4;
+    grid-row:3;
+    justify-self:start;
+    margin:2px 0 0;
+    padding:4px 7px;
+  }
+  .gfs-bottombar .gfs-right>.gfs-humil-badge[hidden]{
+    display:none!important;
+  }
+  .gfs-bottombar #gfsBotClock{
+    grid-column:3;
+    grid-row:1;
+    justify-self:end;
+    align-self:center;
+    width:100%;
+    min-width:0;
+    box-sizing:border-box;
+    font-size:clamp(21px,5.8vw,28px);
+    letter-spacing:.2px;
+    padding:7px 5px;
+    text-align:center;
+  }
+  .gfs-bottombar #gfsDrawBtn,
+  .gfs-bottombar #gfsResignBtn,
+  .gfs-bottombar #gfsReportBtn{
+    grid-row:2;
+    width:100%;
+    min-width:0;
+    height:42px;
+    padding:6px 3px;
+    border-radius:10px;
+    font-size:14px;
+    font-weight:850;
+    line-height:1.2;
+    cursor:pointer;
+    box-shadow:inset 0 1px rgba(255,255,255,.05);
+  }
+  .gfs-bottombar #gfsDrawBtn{
+    grid-column:1;
+    color:#f0ddb3;
+    border:1px solid #826643;
+    background:linear-gradient(145deg,#46341e,#2b2119);
+  }
+  .gfs-bottombar #gfsResignBtn{
+    grid-column:2;
+    color:#ffe2e7;
+    border:1px solid #bf4a62;
+    background:linear-gradient(145deg,#84253e,#521626);
+  }
+  .gfs-bottombar #gfsReportBtn{
+    grid-column:3;
+    color:#d6f4ff;
+    border:1px solid #4b92a7;
+    background:linear-gradient(145deg,#265667,#16313f);
+  }
+  /* Deadline gets its own row only when visible; never overlaps buttons. */
+  .gfs-bottombar .fullscreen-deadline{
+    position:static;
+    transform:none;
+    grid-column:1 / -1;
+    grid-row:3;
+    justify-self:center;
+    margin:0;
+    min-height:0;
+  }
+}
 </style>
 </head>
 <body>
