@@ -7070,7 +7070,7 @@ $("signIn").onclick = null;
 $("signUp").onclick = null;
 $("close").onclick = closeAuthDialog;
 $("switch").onclick = function(){ openAuth(mode === "signup" ? "signin" : "signup"); };
-$("authForgot").onclick = function(){ var previous = $("email").value.trim(); openAuth("reset"); $("email").value = previous; };
+$("authForgot").onclick = function(){ window.location.href = "reset-password.html"; };
 
 $("authForm").addEventListener("submit", async function(e){
   e.preventDefault();
@@ -7084,6 +7084,8 @@ $("authForm").addEventListener("submit", async function(e){
   $("authMessage").classList.remove("error");
   try{
     if(submitMode === "reset"){
+      window.location.href = "reset-password.html";
+      return;
       var resetReply = await withTimeout(sb.auth.resetPasswordForEmail(email, {redirectTo: REDIRECT + "?kf_reset=1"}), 15000);
       if(resetReply.error) throw resetReply.error;
       $("authMessage").textContent = "If this email belongs to a Kingsfall account, a password reset link will arrive shortly. Check spam too.";
@@ -7961,8 +7963,11 @@ function initApp(){
   /* Auth state change */
   sb.auth.onAuthStateChange(function(event){
     if(event === "PASSWORD_RECOVERY"){
-      kfRecoveryRequested = true;
-      setTimeout(function(){ openAuth("recovery"); }, 0);
+      // Legacy recovery links may still return to the home page.
+      // Preserve the Supabase URL tokens by navigating to the dedicated recovery page.
+      var recoverySuffix = window.location.search + window.location.hash;
+      window.location.replace("reset-password.html" + recoverySuffix);
+      return;
     }
     // Run Supabase requests after the auth callback returns to avoid auth-lock deadlocks.
     setTimeout(function(){
@@ -7978,7 +7983,10 @@ function initApp(){
     }, 0);
   });
 
-  if(kfRecoveryRequested) openAuth("recovery");
+  if(kfRecoveryRequested){
+    window.location.replace("reset-password.html" + window.location.search + window.location.hash);
+    return;
+  }
 
   /* Initial auth check */
   loadFeatureFlags();
