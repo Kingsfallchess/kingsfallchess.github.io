@@ -2520,7 +2520,9 @@ var tournCurrent = null;
 var tournChannel = null;
 var tournTickTimer = null;
 var tournMyEntry = null;
-var tournMatchCheckTimer = null;
+var kfTournMatchNoticeChannel = null;
+var kfTournMatchNoticeUserId = null;
+var kfTournMatchRecoveryPromise = null;
 var tournActiveMatch = null;
 var startingTournMatchId = null;
 var tournStartBlockedMatchId = null;
@@ -3019,6 +3021,7 @@ async function loadTournamentState(){
     updateTournButton();
     if($("tournDialog").open && tournView === "next") renderTournDialog();
     startTournChannel();
+    if(!document.hidden && tournCurrent && tournCurrent.status==="active") checkTournMatchStatus();
   } catch(err){ if(requestId === tournStateRequestId) console.warn("Tournament state error:", err); }
 }
 
@@ -3096,6 +3099,7 @@ async function refreshTournLive(){
      tournCurrent.id !== tournamentId) return;
   if($("tournDialog").open) renderTournDialog();
   updateTournButton();
+  if(!document.hidden && tournCurrent && tournCurrent.status==="active") checkTournMatchStatus();
 }
 
 function handleTournUpdate(row){
@@ -3473,11 +3477,50 @@ function launchConfetti(){
   setTimeout(function(){ layer.innerHTML = ""; }, 4500);
 }
 
-function startTournMatchWatcher(){
-  if(tournMatchCheckTimer) clearInterval(tournMatchCheckTimer);
-  tournMatchCheckTimer=null;
-  if(document.hidden)return;
-  tournMatchCheckTimer = setInterval(checkTournMatchStatus, 2000);
+// A private per-player broadcast announces matches without polling.
+function kfStopTournamentMatchNotices(){
+  var old=kfTournMatchNoticeChannel;
+  kfTournMatchNoticeChannel=null;
+  kfTournMatchNoticeUserId=null;
+  if(old && sb) sb.removeChannel(old);
+}
+async function kfRecoverTournamentMatch(){
+  if(!sb || !currentUser || document.hidden)return;
+  if(kfTournMatchRecoveryPromise)return kfTournMatchRecoveryPromise;
+  var p=(async function(){
+    await loadTournamentState();
+    if(!document.hidden && currentUser)await checkTournMatchStatus();
+  })();
+  kfTournMatchRecoveryPromise=p;
+  try{await p;}
+  catch(err){console.warn("Tournament match recovery failed:",err);}
+  finally{if(kfTournMatchRecoveryPromise===p)kfTournMatchRecoveryPromise=null;}
+}
+function kfStartTournamentMatchNotices(userId){
+  if(!sb || !userId || !sb.channel)return;
+  if(kfTournMatchNoticeChannel && kfTournMatchNoticeUserId===userId)return;
+  kfStopTournamentMatchNotices();
+  var channel=sb.channel("kf:tournament:match:"+userId,{config:{private:true}})
+    .on("broadcast",{event:"kf_match_ready"},function(message){
+      if(kfTournMatchNoticeChannel!==channel || !currentUser || currentUser.id!==userId)return;
+      var payload=message && message.payload;
+      if(!payload || !payload.match_id || document.hidden)return;
+      kfRecoverTournamentMatch();
+    });
+  kfTournMatchNoticeChannel=channel;
+  kfTournMatchNoticeUserId=userId;
+  sb.auth.getSession().then(function(response){
+    if(kfTournMatchNoticeChannel!==channel || !currentUser || currentUser.id!==userId)return;
+    var token=response && response.data && response.data.session && response.data.session.access_token;
+    if(!token){console.warn("Tournament private Realtime unavailable: no session");return;}
+    sb.realtime.setAuth(token);
+    channel.subscribe(function(status){
+      if(kfTournMatchNoticeChannel!==channel)return;
+      if(status==="SUBSCRIBED" && !document.hidden)kfRecoverTournamentMatch();
+      else if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED")
+        console.warn("Tournament match notice connection:",status);
+    });
+  }).catch(function(error){console.warn("Tournament notice subscription failed:",error);});
 }
 
 async function checkTournMatchStatus(){
@@ -3767,7 +3810,6 @@ async function reloadGameState(gameId){
 document.addEventListener("visibilitychange", function(){
   kfSetClockDisplayVisibility();
   startTournTick();
-  startTournMatchWatcher();
   kfRefreshGamePolling();
   kfUpdateQueuePollVisibility();
   kfStartChampionRefresh();
@@ -3799,7 +3841,8 @@ async function getCurrentProfile(){
   var res = await sb.auth.getUser();
   var user = res.data && res.data.user ? res.data.user : null;
   currentUser = user;
-  if(!user) return null;
+  if(!user){kfStopTournamentMatchNotices();return null;}
+  kfStartTournamentMatchNotices(user.id);
   var statsRes = await sb.from("kf_player_stats").select("*").eq("user_id", user.id).maybeSingle();
   var stats = statsRes.data;
   var uname = (user.user_metadata && user.user_metadata.username) || (user.email ? user.email.split("@")[0] : "Player");
@@ -8209,7 +8252,6 @@ function initApp(){
   renderPlayers(null);
   start();
   startTournTick();
-  startTournMatchWatcher();
   kfStartChampionRefresh();
 }
 
