@@ -3770,7 +3770,6 @@ document.addEventListener("visibilitychange", function(){
   startTournMatchWatcher();
   kfRefreshGamePolling();
   kfUpdateQueuePollVisibility();
-  kfStartFeatureRefresh();
   kfStartChampionRefresh();
   if(document.hidden){
     if(kfClockSyncTimer){clearInterval(kfClockSyncTimer);kfClockSyncTimer=null;}
@@ -8876,7 +8875,7 @@ function startFeatureFlagRealtime(){
  if(!sb||kfFeatureChannel||!sb.channel)return;
  kfFeatureChannel=sb.channel("kf-feature-flags")
   .on("postgres_changes",{event:"*",schema:"public",table:"kf_feature_flags"},function(){if(!document.hidden)loadFeatureFlags();})
-  .subscribe(function(status){if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("Feature flag realtime unavailable; periodic refresh remains active.");});
+  .subscribe(function(status){if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("Feature flag Realtime unavailable; settings refresh on page return or reload.");});
 }
 async function loadFeatureFlags(){
  if(!sb||kfFeatureLoadBusy)return; kfFeatureLoadBusy=true;
@@ -8887,14 +8886,7 @@ async function loadFeatureFlags(){
  }catch(error){console.warn("Feature flag refresh failed",error);}
  finally{kfFeatureLoadBusy=false;}
 }
-// Realtime remains live; periodic feature refresh pauses in background.
-var kfFeatureRefreshTimer=null;
-function kfStartFeatureRefresh(){
-  if(kfFeatureRefreshTimer){clearInterval(kfFeatureRefreshTimer);kfFeatureRefreshTimer=null;}
-  if(document.hidden)return;
-  kfFeatureRefreshTimer=setInterval(loadFeatureFlags,30000);
-}
-kfStartFeatureRefresh();
+// Feature flags are updated by Realtime and fetched on initial load or page return.
 
 /* ===== HONORS PAGE ===== */
 var honorsLoadSequence = 0;
