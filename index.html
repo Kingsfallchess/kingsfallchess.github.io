@@ -699,9 +699,9 @@ body.game-focus .game-fullscreen{display:flex}
 .gfs-bottombar{border-top:1px solid var(--line2)}
 .gfs-left{flex:0 0 auto;display:flex;align-items:center;gap:10px;min-width:0}
 .gfs-right{flex:1;display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;margin-left:auto}
-.gfs-profile{display:flex;align-items:center;gap:10px;min-width:0}
+.gfs-profile{flex:1;display:flex;align-items:center;gap:10px;min-width:0}
 .gfs-avatar{width:90px;height:90px;border-radius:50%;object-fit:cover;border:4px solid var(--gold);background:var(--btn-bg);flex:none}
-.gfs-info{min-width:0;display:flex;flex-direction:column;gap:5px}
+.gfs-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
 .gfs-info .gfs-name{font-weight:900;font-size:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:8px}
 .gfs-info .gfs-name{display:block;width:100%;min-width:0;text-overflow:clip}
 .gfs-bottombar .gfs-info .gfs-name{text-align:right}
@@ -725,9 +725,7 @@ body.game-focus .game-fullscreen{display:flex}
 .gfs-draw:hover{background:var(--btn-hover);border-color:var(--gold)}
 .gfs-draw:disabled{opacity:.4;cursor:not-allowed}
 .gfs-humil-badge{display:flex;align-items:center;gap:5px;padding:6px 10px;border-radius:10px;background:linear-gradient(135deg,rgba(74,42,6,.9),rgba(42,20,3,.9));border:1px solid var(--gold);color:var(--gold2);font-weight:800;font-size:10px;letter-spacing:.5px;flex:none;white-space:nowrap}
-.gfs-humil-badge[hidden]{display:flex!important;visibility:hidden!important;pointer-events:none!important}
-/* Roulette removes the badge completely instead of reserving an invisible slot. */
-.gfs-humil-badge.roulette-hidden{display:none!important}
+.gfs-humil-badge[hidden],.gfs-humil-badge.roulette-hidden{display:none!important}
   /* ===== NEW: humiliation badge inactive state (کلیک‌پذیر) ===== */
 .gfs-humil-badge.inactive{
   background:linear-gradient(135deg,rgba(60,60,60,.85),rgba(30,30,30,.85));
