@@ -1694,16 +1694,17 @@ body.vip-board-sunset{--board-light1:#ffd9c8;--board-light2:#f7bea2;--board-dark
       <input id="signupName" type="text" minlength="3" maxlength="20" autocomplete="nickname" placeholder="e.g. PersianKnight">
     </div>
     <div id="signupCountryOption" hidden><label class="kf-country-toggle"><input id="signupFlagEnabled" type="checkbox"> Show my country flag on my profile</label><div id="signupCountryWrap" class="kf-country-wrap" hidden><label for="signupCountry">Choose your country</label><select id="signupCountry"></select></div></div>
-    <label for="email">Email address</label>
+    <label id="authEmailLabel" for="email">Email address</label>
     <input id="email" type="email" autocomplete="email" required placeholder="you@example.com">
-    <label for="password">Password</label>
+    <label id="authPasswordLabel" for="password">Password</label>
     <input id="password" type="password" minlength="6" required autocomplete="current-password" placeholder="At least 6 characters">
     <button class="btn gold submit" id="submit" type="submit">Sign In</button>
-    <div id="authMessage"></div>
-    <div class="switch">
+    <div id="authMessage" role="status" aria-live="polite"></div>
+    <div class="switch" id="authSwitchWrap">
       <span id="switchText">New to Kingsfall?</span>
       <button type="button" id="switch">Create an account</button>
     </div>
+    <div class="switch" id="authForgotWrap"><button type="button" id="authForgot">Forgot password?</button></div>
   </form>
 </div>
 <dialog id="profileDialog">
@@ -7041,22 +7042,34 @@ function openAuth(m){
   $("authMessage").textContent = "";
   $("authMessage").classList.remove("error");
   var up = m === "signup";
-  $("authTitle").textContent = up ? "Create your account" : "Sign in";
-  $("submit").textContent = up ? "Create account" : "Sign In";
+  var reset = m === "reset";
+  var recovery = m === "recovery";
+  $("authTitle").textContent = recovery ? "Choose a new password" : reset ? "Reset your password" : up ? "Create your account" : "Sign in";
+  $("submit").textContent = recovery ? "Save new password" : reset ? "Email reset link" : up ? "Create account" : "Sign In";
   $("switchText").textContent = up ? "Already have an account?" : "New to Kingsfall?";
   $("switch").textContent = up ? "Sign in" : "Create an account";
-  $("password").autocomplete = up ? "new-password" : "current-password";
+  $("authSwitchWrap").hidden = recovery;
+  $("authForgotWrap").hidden = m !== "signin";
+  $("authEmailLabel").hidden = recovery;
+  $("email").hidden = recovery;
+  $("email").required = !recovery;
+  $("authPasswordLabel").hidden = reset;
+  $("authPasswordLabel").textContent = recovery ? "New password" : "Password";
+  $("password").hidden = reset;
+  $("password").required = !reset;
+  $("password").autocomplete = (up || recovery) ? "new-password" : "current-password";
   $("signupNameWrap").hidden = !up;
   $("signupName").required = up;
   $("signupCountryOption").hidden = !up;
   kfSetCountryPicker("signupFlagEnabled","signupCountryWrap","signupCountry","");
   $("authDialog").classList.add("is-open");
-  setTimeout(function(){var field=$(up?"signupName":"email");if(field)field.focus();},50);
+  setTimeout(function(){var field=$(recovery?"password":up?"signupName":"email");if(field)field.focus();},50);
 }
 $("signIn").onclick = null;
 $("signUp").onclick = null;
 $("close").onclick = closeAuthDialog;
 $("switch").onclick = function(){ openAuth(mode === "signup" ? "signin" : "signup"); };
+$("authForgot").onclick = function(){ var previous = $("email").value.trim(); openAuth("reset"); $("email").value = previous; };
 
 $("authForm").addEventListener("submit", async function(e){
   e.preventDefault();
@@ -7069,6 +7082,19 @@ $("authForm").addEventListener("submit", async function(e){
   $("authMessage").textContent = "";
   $("authMessage").classList.remove("error");
   try{
+    if(submitMode === "reset"){
+      var resetReply = await withTimeout(sb.auth.resetPasswordForEmail(email, {redirectTo: REDIRECT}), 15000);
+      if(resetReply.error) throw resetReply.error;
+      $("authMessage").textContent = "If this email belongs to a Kingsfall account, a password reset link will arrive shortly. Check spam too.";
+      return;
+    }
+    if(submitMode === "recovery"){
+      var updateReply = await withTimeout(sb.auth.updateUser({password: password}), 15000);
+      if(updateReply.error) throw updateReply.error;
+      $("authMessage").textContent = "Password updated. You can now sign in with your new password.";
+      // Do not sign out here: the recovery link creates an authenticated session.
+      return;
+    }
     var result;
     if(submitMode === "signup"){
       var uname = ($("signupName").value || "").trim();
@@ -7102,7 +7128,7 @@ $("authForm").addEventListener("submit", async function(e){
     }
   } finally {
     submit.disabled = false;
-    submit.textContent = submitMode === "signup" ? "Create account" : "Sign In";
+    submit.textContent = submitMode === "recovery" ? "Save new password" : submitMode === "reset" ? "Email reset link" : submitMode === "signup" ? "Create account" : "Sign In";
   }
 });
 
@@ -7929,6 +7955,9 @@ function initApp(){
 
   /* Auth state change */
   sb.auth.onAuthStateChange(function(event){
+    if(event === "PASSWORD_RECOVERY"){
+      setTimeout(function(){ openAuth("recovery"); }, 0);
+    }
     // Run Supabase requests after the auth callback returns to avoid auth-lock deadlocks.
     setTimeout(function(){
       updateAuth().catch(function(error){ console.error("Auth refresh failed:",error); });
