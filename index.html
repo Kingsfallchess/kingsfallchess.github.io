@@ -7601,15 +7601,17 @@ function kfPremoveCommittedAfterFen(row,pm){
       if(!replay.load_pgn(row.pgn))throw Error("Invalid move history");
       var moves=replay.history({verbose:true});
       replay=new Chess();
+      var previousFen=null;
       for(var j=0;j<moves.length;j++){
         var beforeFen=replay.fen(),mv=moves[j];
         replay.move(mv);
-        // Index the move following each opponent position; subsequent
-        // checks become constant-time without replaying the complete PGN.
+        // Expected FEN precedes the opponent's move. Our premove must
+        // match the *following* move, not the opponent move itself.
         if(j>0){
-          var key=beforeFen+"|"+mv.from+"|"+mv.to+"|"+(mv.promotion||"");
+          var key=previousFen+"|"+mv.from+"|"+mv.to+"|"+(mv.promotion||"");
           kfPremoveReplayIndex[key]=replay.fen();
         }
+        previousFen=beforeFen;
       }
     }catch(e){kfPremoveReplayIndex=Object.create(null);}
   }
