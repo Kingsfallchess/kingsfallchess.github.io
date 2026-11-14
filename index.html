@@ -7064,7 +7064,7 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     if(onlineGameId===submittedGameId)kfDrainDeferredGameRow();
     // Reconcile once with the server after ignored in-flight/realtime snapshots.
     if(onlineGameId === submittedGameId){
-      setTimeout(function(){ syncGameState(submittedGameId); }, 120);
+      kfScheduleMoveReconcile(submittedGameId);
     }
   }
 }
@@ -7564,6 +7564,20 @@ var kfPremoveSelected=null,kfPremoveQueued=null,kfPremoveGameId=null;
 var kfPremoveQueueSerial=0;
 var kfMultiPremoveQueue=[],kfMultiPremovePending=false;
 var kfPairStored=false,kfPairRequest=null,kfPairRequestChain=Promise.resolve();
+// Cache a single authoritative PGN replay across the several premove checks
+// caused by one fast Realtime snapshot. Never trust this cache across PGNs.
+var kfPremoveReplayPgn=null,kfPremoveReplayIndex=null;
+var kfPremoveSyncTimer=null,kfPremoveSyncGameId=null;
+function kfScheduleMoveReconcile(gid){
+  // Rapid alternating premoves should not queue one full SELECT per move.
+  // The latest state is still applied immediately via Realtime.
+  if(kfPremoveSyncTimer!==null)clearTimeout(kfPremoveSyncTimer);
+  kfPremoveSyncGameId=gid;
+  kfPremoveSyncTimer=setTimeout(function(){
+    kfPremoveSyncTimer=null;
+    if(onlineGameId===gid)syncGameState(gid);
+  },240);
+}
 function kfMultiReset(){kfMultiPremoveQueue=[];kfMultiPremovePending=false;kfPairStored=false;kfPremoveSelected=null;kfPremoveQueued=null;}
 function kfProjectedPiece(s){
   var p=game.get(s);
@@ -7579,24 +7593,29 @@ function kfProjectedPiece(s){
 // Realtime skipped several intermediate turns of a very fast exchange.
 function kfPremoveCommittedAfterFen(row,pm){
   if(!row||!pm||!pm.expectedFen||!row.pgn)return null;
-  try{
-    var replay=new Chess();
-    if(!replay.load_pgn(row.pgn))return null;
-    var moves=replay.history({verbose:true});
-    replay=new Chess();
-    for(var j=0;j<moves.length-1;j++){
-      if(replay.fen()===pm.expectedFen){
-        var a=moves[j],b=moves[j+1];
-        if(a&&b&&b.from===pm.from&&b.to===pm.to&&
-           (b.promotion||null)===(pm.promotion||null)){
-          replay.move(a);replay.move(b);
-          return replay.fen();
+  if(kfPremoveReplayPgn!==row.pgn){
+    kfPremoveReplayPgn=row.pgn;
+    kfPremoveReplayIndex=Object.create(null);
+    try{
+      var replay=new Chess();
+      if(!replay.load_pgn(row.pgn))throw Error("Invalid move history");
+      var moves=replay.history({verbose:true});
+      replay=new Chess();
+      for(var j=0;j<moves.length;j++){
+        var beforeFen=replay.fen(),mv=moves[j];
+        replay.move(mv);
+        // Index the move following each opponent position; subsequent
+        // checks become constant-time without replaying the complete PGN.
+        if(j>0){
+          var key=beforeFen+"|"+mv.from+"|"+mv.to+"|"+(mv.promotion||"");
+          kfPremoveReplayIndex[key]=replay.fen();
         }
       }
-      replay.move(moves[j]);
-    }
-  }catch(e){}
-  return null;
+    }catch(e){kfPremoveReplayIndex=Object.create(null);}
+  }
+  return kfPremoveReplayIndex[
+    pm.expectedFen+"|"+pm.from+"|"+pm.to+"|"+(pm.promotion||"")
+  ]||null;
 }
 function kfMultiConfirmedInHistory(row,pm){
   return !!kfPremoveCommittedAfterFen(row,pm);
@@ -7721,7 +7740,7 @@ async function kfBuildSecondPremoveCandidates(first,second,serial,gid){
       }
     }
     // Yield between branches so tapping and painting stay responsive.
-    if(i%2===1)await new Promise(function(resolve){setTimeout(resolve,0);});
+    if(i%8===7)await new Promise(function(resolve){setTimeout(resolve,0);});
   }
   return result;
 }
