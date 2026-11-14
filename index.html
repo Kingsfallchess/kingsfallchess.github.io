@@ -6910,7 +6910,8 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     }
     
     if(res.error){
-      if(isPremove===true)kfMultiReset();
+      // Any queued selection based on a rejected optimistic move is stale.
+      kfMultiReset();
       // Error-only, fire-and-forget diagnostic. Never runs for accepted moves.
       // Server independently verifies legality from the authoritative game FEN.
       // Do not await: UI rollback, clock and premoves must remain independent.
@@ -7004,9 +7005,16 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     anchorClockToServerTime(onlineGame.last_move_at||onlineGame.clock_started_at);
     lastClockAt=Date.now();tickClock();
     if(isPremove===true)kfMultiArm(onlineGame);
+    // A player may have selected their next piece while this move was still
+    // pending. The move is committed now, so publish the staged first premove.
+    if(kfPremoveQueued===kfMultiPremoveQueue[0]&&kfPremoveQueued&&
+       !kfPremoveQueued.serverPending&&!kfPremoveQueued.serverReady&&
+       !kfPremoveQueued.expectedFen&&onlineGame.turn!==m.color){
+      kfQueueServerPremove(kfPremoveQueued);
+    }
 
   } catch(err) {
-    if(isPremove===true)kfMultiReset();
+    kfMultiReset();
     // Network failures must not leave the clock with a fake confirmed turn.
     if(kfClockBeforeMove){
       clockPerfBaseWhite=kfClockBeforeMove.white;
@@ -7727,7 +7735,10 @@ async function kfHandlePremoveSquare(square,color){
   var pm={from:from,to:square,promotion:promotion,piece:src};
   kfMultiPremoveQueue.push(pm);
   if(kfMultiPremoveQueue.length===1&&!kfMultiPremovePending){
-    kfPremoveQueued=pm;kfQueueServerPremove(pm);
+    kfPremoveQueued=pm;
+    // The locally painted turn may still be an unconfirmed optimistic move.
+    // Arm on the server only after its authoritative acknowledgment.
+    if(!submittingMove&&!kfPendingClockMove)kfQueueServerPremove(pm);
   }
   draw();
 }
@@ -7871,7 +7882,8 @@ async function clickSquare(s){
     }
   }
   if(onlineGameId){
-    if(submittingMove) return;
+    // Selection is always responsive while a previous move is being confirmed.
+    // Submission remains locked in submitMove; this only stages a premove.
     var myColor = null;
     if(onlineGame && currentUser){
       if(onlineGame.white_id === currentUser.id) myColor = "w";
@@ -7881,7 +7893,9 @@ async function clickSquare(s){
       say("Only players may move.",{silentToast:true});
       return;
     }
-    if(game.turn()!==myColor){await kfHandlePremoveSquare(s,myColor);return;}
+    if(submittingMove||kfPendingClockMove||game.turn()!==myColor){
+      await kfHandlePremoveSquare(s,myColor);return;
+    }
     if(kfPremoveSelected||kfPremoveQueued||kfMultiPremoveQueue.length)kfMultiReset();
   }
 
