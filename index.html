@@ -7746,32 +7746,24 @@ async function kfBuildSecondPremoveCandidates(first,second,serial,gid){
   }
   return result;
 }
+// The client stores at most two *moves*, never speculative opponent FEN/PGN.
+// PostgreSQL generates the authoritative successor position on execution.
 function kfQueueServerPremove(pm){
   if(!sb||!onlineGame||!onlineGameId||!pm)return;
   var expected=onlineGame.fen,gid=onlineGameId;
-  var candidates=kfBuildPremoveCandidates(pm);
-  if(!candidates.length)return;
   var serial=++kfPremoveQueueSerial;
   pm.expectedFen=expected;pm.serverPending=true;
-  var first={from:pm.from,to:pm.to,promotion:pm.promotion||null,
-    candidates:candidates.map(function(c){return {
-      expected_fen:expected,opponent_fen:c.opponent_fen,
-      fen:c.fen,pgn:c.pgn,san:c.san,new_turn:c.new_turn,status:"active"
-    };})};
-  // The one-premive case is sent immediately. Adding the second later
-  // upgrades this same atomic server queue without replacing the first move.
-  function enqueue(items){
-    var work=function(){
-      return sb.rpc("kf_queue_premove_pair_v2",{
-        p_game_id:gid,p_expected_fen:expected,p_moves:items
+  pm.terminalOpponentFens=null;
+  var first={from:pm.from,to:pm.to,promotion:pm.promotion||null};
+  pm.kfPairFirst=first;
+  pm.kfPairGameId=gid;
+  kfPairRequestChain=kfPairRequestChain.catch(function(){})
+    .then(function(){
+      return sb.rpc("kf_queue_premove_compact_v3",{
+        p_game_id:gid,p_expected_fen:expected,p_moves:[first]
       });
-    };
-    kfPairRequestChain=kfPairRequestChain.catch(function(){})
-      .then(work);
-    return kfPairRequestChain;
-  }
-  var write=enqueue([first]);
-  write.then(function(res){
+    });
+  kfPairRequestChain.then(function(res){
     if(serial!==kfPremoveQueueSerial||onlineGameId!==gid||
        kfPremoveQueued!==pm)return;
     pm.serverPending=false;
@@ -7780,53 +7772,36 @@ function kfQueueServerPremove(pm){
        currentUser&&onlineGame.turn===(onlineGame.white_id===currentUser.id?"w":"b")){
       if(!kfMaybeExecuteLocalPremove(onlineGame)){kfMultiReset();draw();}
     }
-  }).catch(function(){
-    pm.serverPending=false;
-  });
-  // The second selection may arrive while the first request is in flight.
-  // The client immediately shows it; its branch preparation runs separately.
-  pm.kfPairFirst=first;
-  pm.kfPairGameId=gid;
+  }).catch(function(){pm.serverPending=false;});
   if(kfMultiPremoveQueue.length===2)kfQueueSecondServerPremove();
 }
-async function kfQueueSecondServerPremove(){
+function kfQueueSecondServerPremove(){
   if(!sb||kfMultiPremoveQueue.length!==2||!onlineGame||!onlineGameId)return;
   var firstPm=kfMultiPremoveQueue[0],secondPm=kfMultiPremoveQueue[1];
   var first=firstPm.kfPairFirst,gid=onlineGameId;
-  if(!first||!first.candidates||!first.candidates.length)return;
+  if(!first||!firstPm.expectedFen)return;
   var expected=firstPm.expectedFen;
   var serial=++kfPremoveQueueSerial;
   firstPm.serverPending=true;
-  var secondCandidates=await kfBuildSecondPremoveCandidates(
-    first.candidates,secondPm,serial,gid);
-  if(serial!==kfPremoveQueueSerial||onlineGameId!==gid||
-     kfMultiPremoveQueue[0]!==firstPm||
-     kfMultiPremoveQueue[1]!==secondPm)return;
-  if(!secondCandidates||!secondCandidates.length){
-    firstPm.serverPending=false;return;
-  }
-  firstPm.kfPairSecondCandidates=secondCandidates;
-  var pair=[first,{from:secondPm.from,to:secondPm.to,
-    promotion:secondPm.promotion||null,candidates:secondCandidates}];
-  if(JSON.stringify(pair).length>2500000){
-    firstPm.serverPending=false;return;
-  }
-  // Ordered behind the first request to prevent a late first write from
-  // overwriting the second slot.
+  var second={from:secondPm.from,to:secondPm.to,promotion:secondPm.promotion||null};
+  // The second queue upgrade is ordered behind the first write, so a
+  // delayed single-slot response cannot overwrite the two-slot queue.
   kfPairRequestChain=kfPairRequestChain.catch(function(){})
-    .then(function(){return sb.rpc("kf_queue_premove_pair_v2",{
-      p_game_id:gid,p_expected_fen:expected,p_moves:pair
-    });});
-  try{
-    var res=await kfPairRequestChain;
+    .then(function(){
+      return sb.rpc("kf_queue_premove_compact_v3",{
+        p_game_id:gid,p_expected_fen:expected,p_moves:[first,second]
+      });
+    });
+  kfPairRequestChain.then(function(res){
     if(serial!==kfPremoveQueueSerial||onlineGameId!==gid||
-       kfMultiPremoveQueue[0]!==firstPm)return;
+       kfMultiPremoveQueue[0]!==firstPm||
+       kfMultiPremoveQueue[1]!==secondPm)return;
     firstPm.serverPending=false;
     if(!res.error&&res.data===true){
       kfPairStored=true;firstPm.serverReady=true;
       secondPm.serverReady=true;
     }
-  }catch(e){firstPm.serverPending=false;}
+  }).catch(function(){firstPm.serverPending=false;});
 }
 // Fast, speculative premove geometry. Opponent pieces may move before
 // execution, so this deliberately does not claim future legality.
