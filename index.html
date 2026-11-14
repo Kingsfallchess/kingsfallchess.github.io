@@ -4074,8 +4074,8 @@ function applyOnlineGame(row){
   var prevClockTurn = onlineGame ? onlineGame.turn : clockPerfTurn;
   // Keep the received server snapshot independent of local optimistic turns.
   onlineGame = Object.assign({},row);
-  if(kfPremoveGameId&&kfPremoveGameId!==row.id){kfPremoveSelected=null;kfPremoveQueued=null;}
-  if(row.status!=="active"){kfPremoveSelected=null;kfPremoveQueued=null;}
+  if(kfPremoveGameId&&kfPremoveGameId!==row.id)kfMultiReset();
+  if(row.status!=="active")kfMultiReset();
   kfPremoveGameId=row.id;
   // Paint only after applying the latest board and clock snapshot.
 
@@ -4148,9 +4148,11 @@ var kfServerCommittedPremove=!!(kfPremoveQueued&&currentUser&&
   row.last_move.to===kfPremoveQueued.to&&
   row.turn!==(row.white_id===currentUser.id?"w":"b")&&
   kfPremoveQueued.expectedFen&&row.fen!==kfPremoveQueued.expectedFen);
-if(kfServerCommittedPremove){
-  kfPremoveQueued=null;kfPremoveSelected=null;kfPremoveQueueSerial++;
-}
+if(!kfServerCommittedPremove&&kfPremoveQueued&&
+   row.fen!==kfPremoveQueued.expectedFen&&
+   kfMultiConfirmedInHistory(row,kfPremoveQueued))
+  kfServerCommittedPremove=true;
+if(kfServerCommittedPremove)kfMultiAdvance();
 // If the queue was accepted by PostgreSQL, do not race the same move
 // through the old browser RPC when an intermediate opponent snapshot arrives.
 var kfPremoveExecuted=!kfServerCommittedPremove&&kfHadPremove&&
@@ -4160,9 +4162,35 @@ var kfPremoveExecuted=!kfServerCommittedPremove&&kfHadPremove&&
        kfPremoveQueued.terminalOpponentFens.indexOf(row.fen)===-1))))&&
   kfMaybeExecuteLocalPremove(row);
 if(kfHadPremove && kfPremoveQueued && kfPremoveQueued.serverReady){
-  // The database may decline an illegal premove without changing the turn.
-  // Repaint from server truth and drop the queued visual preview.
-  kfPremoveQueued=null;kfPremoveSelected=null;kfPremoveQueueSerial++;
+  // Realtime may deliver the opponent's intermediate update while the DB
+  // trigger is still committing our premove. Verify the final server row
+  // rather than incorrectly discarding the remaining premove queue.
+  var pendingPm=kfPremoveQueued, pendingGameId=row.id;
+  if(!pendingPm.reconciling){
+    pendingPm.reconciling=true;
+    sb.from("kf_games").select("*").eq("id",pendingGameId).maybeSingle()
+      .then(function(res){
+        pendingPm.reconciling=false;
+        if(pendingGameId!==onlineGameId||kfPremoveQueued!==pendingPm)return;
+        if(res.error||!res.data)return;
+        if(res.data.turn!==(res.data.white_id===currentUser.id?"w":"b")){
+          applyOnlineGame(res.data);
+        }else{
+          kfMultiReset();kfPremoveQueueSerial++;draw();
+        }
+      }).catch(function(){pendingPm.reconciling=false;});
+  }
+}
+kfMultiArm(row);
+// If realtime skipped the previous confirmed premove *and* the opponent
+// already replied, the next planned action is now an ordinary turn move.
+if(kfMultiPremovePending&&row.status==="active"&&currentUser&&
+   row.turn===(row.white_id===currentUser.id?"w":"b")&&
+   kfMultiPremoveQueue.length&&!submittingMove&&!kfPendingClockMove){
+  kfMultiPremovePending=false;
+  kfPremoveQueued=kfMultiPremoveQueue[0];
+  kfPremoveExecuted=!!kfMaybeExecuteLocalPremove(row);
+  if(!kfPremoveExecuted)kfMultiReset();
 }
 if(!kfPremoveExecuted &&
    (kfBoardNeedsDraw || (row.last_move_at!==prevLastMoveAt && game && row.fen===game.fen())))
@@ -6882,6 +6910,7 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     }
     
     if(res.error){
+      if(isPremove===true)kfMultiReset();
       // Error-only, fire-and-forget diagnostic. Never runs for accepted moves.
       // Server independently verifies legality from the authoritative game FEN.
       // Do not await: UI rollback, clock and premoves must remain independent.
@@ -6959,6 +6988,7 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     // This is only reached after the server accepts the move; deferred
     // Realtime snapshots are reconciled in finally below.
     onlineGame.fen = game.fen();
+    onlineGame.pgn = game.pgn();
     onlineGame.white_time_left = res.data.white_time_left;
     onlineGame.black_time_left = res.data.black_time_left;
     onlineGame.last_move = {from: m.from, to: m.to, san: m.san};
@@ -6973,8 +7003,10 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     clockPerfTurn=onlineGame.turn||"w";
     anchorClockToServerTime(onlineGame.last_move_at||onlineGame.clock_started_at);
     lastClockAt=Date.now();tickClock();
+    if(isPremove===true)kfMultiArm(onlineGame);
 
   } catch(err) {
+    if(isPremove===true)kfMultiReset();
     // Network failures must not leave the clock with a fake confirmed turn.
     if(kfClockBeforeMove){
       clockPerfBaseWhite=kfClockBeforeMove.white;
@@ -7423,14 +7455,7 @@ function draw(){
       var pmPreview = !!(onlineGameId&&onlineGame&&onlineGame.status==="active"&&
         pmColor&&game.turn()!==pmColor&&kfPremoveQueued&&kfPremoveGameId===onlineGameId);
       if(pmPreview){
-        var pmPiece = game.get(kfPremoveQueued.from);
-        if(pmPiece&&pmPiece.color===pmColor){
-          if(s===kfPremoveQueued.from)p=null;
-          else if(s===kfPremoveQueued.to){
-            p=(pmPiece.type==="p" && (s.charAt(1)==="8" || s.charAt(1)==="1"))?
-              {color:pmColor,type:kfPremoveQueued.promotion||"q"}:pmPiece;
-          }
-        }
+        if(kfMultiPremoveQueue.length)p=kfProjectedPiece(s);
       }
       var b = _sqEls[s];
       if(!b) continue;
@@ -7439,8 +7464,8 @@ function draw(){
       var pmVisible=!!(onlineGameId&&onlineGame&&currentUser&&onlineGame.status==="active"&&
         (onlineGame.white_id===currentUser.id?"w":onlineGame.black_id===currentUser.id?"b":null)!==game.turn());
       b.classList.toggle("kf-premove-from",pmVisible&&kfPremoveSelected===s);
-      b.classList.toggle("kf-premove-to",pmVisible&&!!kfPremoveQueued&&kfPremoveQueued.to===s);
-      b.classList.toggle("kf-premove-queued",pmVisible&&!!kfPremoveQueued&&kfPremoveQueued.from===s);
+      b.classList.toggle("kf-premove-to",pmVisible&&kfMultiPremoveQueue.some(function(pm){return pm.to===s;}));
+      b.classList.toggle("kf-premove-queued",pmVisible&&kfMultiPremoveQueue.some(function(pm){return pm.from===s;}));
       b.classList.remove("humil-dim", "humil-target");
       b.style.backgroundImage = "";
       if(humilSelecting){
@@ -7474,7 +7499,7 @@ function draw(){
   if(game.in_checkmate()) statusText = "Checkmate — " + (turn === "White" ? "Black" : "White") + " wins";
   else if(game.in_draw()) statusText = "Draw";
   else statusText = turn + " to move" + (game.in_check() ? " · Check" : "");
-  $("status").textContent = statusText;
+  $("status").textContent = statusText+(kfMultiPremoveQueue.length?" · Premoves: "+kfMultiPremoveQueue.length:"");
   $("top").textContent = flipped ? "White pieces" : "Black pieces";
   $("bottom").textContent = flipped ? "Black pieces" : "White pieces";
   if(!onlineGameId && !computerMode) $("undo").disabled = !game.history().length;
@@ -7502,6 +7527,50 @@ function updateHistory(){
 /* ===== Browser-only premove: legality checked on the newly received turn ===== */
 var kfPremoveSelected=null,kfPremoveQueued=null,kfPremoveGameId=null;
 var kfPremoveQueueSerial=0;
+var kfMultiPremoveQueue=[],kfMultiPremovePending=false;
+function kfMultiReset(){kfMultiPremoveQueue=[];kfMultiPremovePending=false;kfPremoveSelected=null;kfPremoveQueued=null;}
+function kfProjectedPiece(s){
+  var p=game.get(s);
+  kfMultiPremoveQueue.forEach(function(x){
+    if(x.from===s)p=null;
+    if(x.to===s)p={type:x.promotion||x.piece.type,color:x.piece.color};
+  });
+  return p;
+}
+// Check committed move history when realtime skips the intermediate premove
+// snapshot (possible during very rapid exchanges).
+function kfMultiConfirmedInHistory(row,pm){
+  if(!row||!pm||!pm.expectedFen||!row.pgn)return false;
+  try{
+    var replay=new Chess();
+    if(!replay.load_pgn(row.pgn))return false;
+    var moves=replay.history({verbose:true});
+    replay=new Chess();
+    for(var j=0;j<moves.length-1;j++){
+      if(replay.fen()===pm.expectedFen){
+        var a=moves[j],b=moves[j+1];
+        if(a&&b&&b.from===pm.from&&b.to===pm.to&&
+           (b.promotion||null)===(pm.promotion||null))return true;
+      }
+      replay.move(moves[j]);
+    }
+  }catch(e){}
+  return false;
+}
+function kfMultiAdvance(){
+  if(kfMultiPremoveQueue.length)kfMultiPremoveQueue.shift();
+  kfPremoveQueued=null;kfPremoveSelected=null;kfPremoveQueueSerial++;
+  kfMultiPremovePending=true;
+}
+function kfMultiArm(row){
+  if(!kfMultiPremovePending||!currentUser||row.status!=="active")return;
+  var mine=row.white_id===currentUser.id?"w":row.black_id===currentUser.id?"b":null;
+  if(!mine||row.turn===mine)return;
+  kfMultiPremovePending=false;
+  if(!kfMultiPremoveQueue.length)return;
+  kfPremoveQueued=kfMultiPremoveQueue[0];
+  kfQueueServerPremove(kfPremoveQueued);
+}
 function kfBuildPremoveCandidates(pm){
   if(!onlineGame||!game||!pm)return [];
   var simulation=new Chess();
@@ -7564,8 +7633,8 @@ function kfQueueServerPremove(pm){
   }).then(function(res){
     if(serial!==kfPremoveQueueSerial||kfPremoveQueued!==pm||
        onlineGameId!==gameId){
-      if(sb&&gameId)sb.rpc("kf_cancel_premove_cache_v1",
-        {p_game_id:gameId}).then(function(){},function(){});
+      // Never let an old request cancel a newer sequence's armed action.
+      // Explicit cancellation and the database FEN guard handle stale work.
       return;
     }
     pm.serverPending=false;
@@ -7600,90 +7669,67 @@ function kfQueueServerPremove(pm){
 // execution, so this deliberately does not claim future legality.
 function kfPremoveGeometry(from,to,color){
   if(!/^[a-h][1-8]$/.test(from)||!/^[a-h][1-8]$/.test(to)||from===to)return false;
-  var piece=game.get(from);
-  // A friendly piece on the destination may be captured by the opponent
-  // before our turn. It must not block speculative premove selection.
+  var piece=kfProjectedPiece(from);
   if(!piece||piece.color!==color)return false;
-  var x=to.charCodeAt(0)-from.charCodeAt(0), y=Number(to[1])-Number(from[1]);
-  var ax=Math.abs(x),ay=Math.abs(y),type=piece.type;
-  if(type==="n")return ax===1&&ay===2||ax===2&&ay===1;
-  if(type==="k"){
+  var x=to.charCodeAt(0)-from.charCodeAt(0),y=Number(to[1])-Number(from[1]);
+  var ax=Math.abs(x),ay=Math.abs(y),t=piece.type;
+  if(t==="n")return (ax===1&&ay===2)||(ax===2&&ay===1);
+  if(t==="k"){
     if(Math.max(ax,ay)===1)return true;
-    if(ay!==0||ax!==2)return false;
-    var rookSquare=(x>0?"h":"a")+from[1],rook=game.get(rookSquare);
-    return !!rook&&rook.color===color&&rook.type==="r"&&
-      !game.get((x>0?"f":"d")+from[1])&&
-      (x>0||!game.get("b"+from[1]));
+    var rook=kfProjectedPiece((x>0?"h":"a")+from[1]);
+    return y===0&&ax===2&&rook&&rook.color===color&&rook.type==="r"&&
+      !kfProjectedPiece((x>0?"f":"d")+from[1])&&(x>0||!kfProjectedPiece("b"+from[1]));
   }
-  if(type==="p"){
-    var step=color==="w"?1:-1;
-    if(y===step&&ax===1)return true; // speculative capture, even onto an empty square
-    if(x!==0)return false;
-    if(y===step)return true; // opposing blocker may leave on their turn
-    if(y===2*step&&Number(from[1])===(color==="w"?2:7)){
-      return !game.get(from[0]+(Number(from[1])+step));
-    }
-    return false;
+  if(t==="p"){
+    var d=color==="w"?1:-1;
+    return (ax===1&&y===d)||(x===0&&(y===d||(y===2*d&&
+      Number(from[1])===(color==="w"?2:7)&&
+      !kfProjectedPiece(from[0]+(Number(from[1])+d)))));
   }
-  var slide=(type==="b"&&ax===ay&&ax>0)||
-    (type==="r"&&(x===0)!==(y===0))||
-    (type==="q"&&(ax===ay&&ax>0||(x===0)!==(y===0)));
-  if(!slide)return false;
-  var sx=Math.sign(x),sy=Math.sign(y),n=Math.max(ax,ay);
-  for(var i=1;i<n;i++){
-    var square=String.fromCharCode(from.charCodeAt(0)+sx*i)+(Number(from[1])+sy*i);
-    var blocker=game.get(square);
+  var sliding=(t==="b"&&ax===ay&&ax>0)||
+    (t==="r"&&(x===0)!==(y===0))||
+    (t==="q"&&((ax===ay&&ax>0)||((x===0)!==(y===0))));
+  if(!sliding)return false;
+  for(var i=1;i<Math.max(ax,ay);i++){
+    var sq=String.fromCharCode(from.charCodeAt(0)+Math.sign(x)*i)+
+      (Number(from[1])+Math.sign(y)*i);
+    var blocker=kfProjectedPiece(sq);
     if(blocker&&blocker.color===color)return false;
-    // Enemy pieces can move on the upcoming turn: don't reject prematurely.
   }
   return true;
 }
 async function kfHandlePremoveSquare(square,color){
   if(!onlineGameId||!onlineGame||onlineGame.status!=="active")return;
-  if(kfPremoveGameId!==onlineGameId){
-    kfPremoveGameId=onlineGameId;kfPremoveSelected=null;kfPremoveQueued=null;
-  }
-  var piece=game.get(square);
+  if(kfPremoveGameId!==onlineGameId){kfPremoveGameId=onlineGameId;kfMultiReset();}
   if(square===kfPremoveSelected){kfPremoveSelected=null;draw();return;}
-  if(!kfPremoveSelected&&kfPremoveQueued&&
-    (square===kfPremoveQueued.from||square===kfPremoveQueued.to)){
-    kfCancelQueuedServerPremove();kfPremoveQueued=null;draw();return;
+  if(!kfPremoveSelected&&kfMultiPremoveQueue.some(function(x){
+    return x.from===square||x.to===square;
+  })&&!((kfProjectedPiece(square)||{}).color===color)){
+    kfCancelQueuedServerPremove();kfMultiReset();draw();return;
   }
-  // A selected piece gets first chance to target this square, even when
-  // currently occupied by our own piece (conditional recapture premove).
-  // An incompatible friendly square instead switches the selected piece.
+  var piece=kfProjectedPiece(square);
   if(piece&&piece.color===color&&
-     (!kfPremoveSelected||!kfPremoveGeometry(kfPremoveSelected,square,color))){
-    if(kfPremoveQueued){kfCancelQueuedServerPremove();kfPremoveQueued=null;}
-    kfPremoveSelected=square;
-    draw();
-    return;
+      (!kfPremoveSelected||!kfPremoveGeometry(kfPremoveSelected,square,color))){
+    kfPremoveSelected=square;draw();return;
   }
   if(!kfPremoveSelected)return;
-  var from=kfPremoveSelected;
-  kfPremoveSelected=null;
-  if(!kfPremoveGeometry(from,square,color)){
-    say("That premove does not match this piece's movement.",{silentToast:true});
-    draw();return;
+  var from=kfPremoveSelected;kfPremoveSelected=null;
+  if(!kfPremoveGeometry(from,square,color)){draw();return;}
+  if(kfMultiPremoveQueue.length>=5){
+    say("Maximum five premoves.",{silentToast:true});draw();return;
   }
-  // Select underpromotion while queuing, never in the time-critical execution path.
-  var promotion=null;
-  var queuedPiece=game.get(from);
-  if(queuedPiece && queuedPiece.type==="p" &&
-     square.charAt(1)===(color==="w"?"8":"1")){
-    var pendingGameId=onlineGameId;
-    promotion=await askPromotion(color,true);
-    // The opponent may have moved while the picker was open.
-    if(!promotion || onlineGameId!==pendingGameId || !onlineGame ||
-       onlineGame.status!=="active" || game.turn()===color ||
-       !game.get(from) || game.get(from).type!=="p" ||
-       game.get(from).color!==color){
-      draw();return;
-    }
+  var src=kfProjectedPiece(from),promotion=null;
+  if(src.type==="p"&&square[1]===(color==="w"?"8":"1")){
+    var gid=onlineGameId;promotion=await askPromotion(color,true);
+    if(!promotion||onlineGameId!==gid||onlineGame.status!=="active"||
+       game.turn()===color){draw();return;}
   }
-  kfPremoveQueued={from:from,to:square,promotion:promotion};
+  var pm={from:from,to:square,promotion:promotion,piece:src};
+  kfMultiPremoveQueue.push(pm);
+  if(kfMultiPremoveQueue.length===1&&!kfMultiPremovePending){
+    kfPremoveQueued=pm;kfQueueServerPremove(pm);
+  }
   draw();
-  kfQueueServerPremove(kfPremoveQueued);
 }
 function kfStartOptimisticClock(m){
   if(!onlineGameId)return;
@@ -7743,13 +7789,11 @@ function kfMaybeExecuteLocalPremove(row){
   var color=row.white_id===currentUser.id?"w":row.black_id===currentUser.id?"b":null;
   if(!color||row.turn!==color||game.turn()!==color||game.fen()!==row.fen)return;
   var pm=kfPremoveQueued;
-  kfPremoveQueued=null;
-  kfPremoveSelected=null;
-  kfPremoveQueueSerial++;
+  kfMultiAdvance();
   var move=null;
   try{move=game.move({from:pm.from,to:pm.to,promotion:pm.promotion||"q"});}catch(e){}
   if(!move){
-    // No server submission: caller repaints the real board after cancellation.
+    kfMultiReset();
     return false;
   }
   last={from:move.from,to:move.to};
@@ -7838,7 +7882,7 @@ async function clickSquare(s){
       return;
     }
     if(game.turn()!==myColor){await kfHandlePremoveSquare(s,myColor);return;}
-    if(kfPremoveSelected||kfPremoveQueued){kfPremoveSelected=null;kfPremoveQueued=null;}
+    if(kfPremoveSelected||kfPremoveQueued||kfMultiPremoveQueue.length)kfMultiReset();
   }
 
   var p = game.get(s);
