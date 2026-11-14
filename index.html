@@ -2061,6 +2061,7 @@ window.Chess = KingsfallChess;
 var SUPABASE_URL = "https://cyqactlxetfjyjvklpox.supabase.co";
 var SUPABASE_KEY = "sb_publishable_5kPdWhNs53AY_PB29pRGBw_pvXiB0_k";
 var REDIRECT = "https://kingsfallchess.github.io/";
+var kfRecoveryRequested = /(?:[?&#])(?:type=recovery|kf_reset=1)(?:[&#]|$)/i.test(window.location.search + window.location.hash);
 var sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
 function $(id){ return document.getElementById(id); }
@@ -7083,15 +7084,19 @@ $("authForm").addEventListener("submit", async function(e){
   $("authMessage").classList.remove("error");
   try{
     if(submitMode === "reset"){
-      var resetReply = await withTimeout(sb.auth.resetPasswordForEmail(email, {redirectTo: REDIRECT}), 15000);
+      var resetReply = await withTimeout(sb.auth.resetPasswordForEmail(email, {redirectTo: REDIRECT + "?kf_reset=1"}), 15000);
       if(resetReply.error) throw resetReply.error;
       $("authMessage").textContent = "If this email belongs to a Kingsfall account, a password reset link will arrive shortly. Check spam too.";
       return;
     }
     if(submitMode === "recovery"){
+      var recoverySession = await withTimeout(sb.auth.getSession(), 12000);
+      if(recoverySession.error || !recoverySession.data || !recoverySession.data.session) throw new Error("Recovery session missing. Please open a fresh password reset email link.");
       var updateReply = await withTimeout(sb.auth.updateUser({password: password}), 15000);
       if(updateReply.error) throw updateReply.error;
-      $("authMessage").textContent = "Password updated. You can now sign in with your new password.";
+      $("authMessage").textContent = "Password updated successfully.";
+      kfRecoveryRequested = false;
+      try { window.history.replaceState(null, "", window.location.pathname); } catch(ignore) {}
       // Do not sign out here: the recovery link creates an authenticated session.
       return;
     }
@@ -7956,6 +7961,7 @@ function initApp(){
   /* Auth state change */
   sb.auth.onAuthStateChange(function(event){
     if(event === "PASSWORD_RECOVERY"){
+      kfRecoveryRequested = true;
       setTimeout(function(){ openAuth("recovery"); }, 0);
     }
     // Run Supabase requests after the auth callback returns to avoid auth-lock deadlocks.
@@ -7971,6 +7977,8 @@ function initApp(){
       });
     }, 0);
   });
+
+  if(kfRecoveryRequested) openAuth("recovery");
 
   /* Initial auth check */
   loadFeatureFlags();
