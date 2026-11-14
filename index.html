@@ -2359,6 +2359,7 @@ var onlineGameId = null;
 var onlineGame = null;
 var queuePoll = null;
 var queueTimeout = null;
+var kfQueueSearching = false;
 var gameChannel = null;
 var onlineGamePolling = null;
 // Fallback database polling is enabled only when both live game feeds are down.
@@ -2474,7 +2475,7 @@ function kfCalibrateServerTime(iso,start,end){
   return true;
 }
 async function kfSyncClock(gid){
-  if(!sb||!gid||gid!==onlineGameId||kfClockSyncBusy||submittingMove||kfPendingClockMove)return;
+  if(document.hidden||!navigator.onLine||!sb||!gid||gid!==onlineGameId||kfClockSyncBusy||submittingMove||kfPendingClockMove)return;
   kfClockSyncBusy=true;var start=Date.now();
   try{
     var res=await sb.rpc("kf_clock_sync",{p_game_id:gid}),end=Date.now();
@@ -2490,9 +2491,12 @@ async function kfSyncClock(gid){
 }
 function kfStartClockSync(gid){
   if(kfClockSyncTimer)clearInterval(kfClockSyncTimer);
-  kfClockSyncTimer=null;if(!gid)return;
-  setTimeout(function(){if(gid===onlineGameId)kfSyncClock(gid);},0);
-  kfClockSyncTimer=setInterval(function(){if(gid===onlineGameId)kfSyncClock(gid);},30000);
+  kfClockSyncTimer=null;
+  if(!gid||document.hidden)return;
+  setTimeout(function(){if(gid===onlineGameId&&!document.hidden)kfSyncClock(gid);},0);
+  kfClockSyncTimer=setInterval(function(){
+    if(gid===onlineGameId&&!document.hidden)kfSyncClock(gid);
+  },30000);
 }
 var clockExpired = false;
 var clockClaimPending = false;
@@ -3048,8 +3052,8 @@ function startTournChannel(){
   if(!sb || tournChannel) return;
   if(tournChannelRetryTimer){ clearTimeout(tournChannelRetryTimer); tournChannelRetryTimer = null; }
   var channel = sb.channel("kf-tourn-ch")
-    .on("postgres_changes",{event:"*",schema:"public",table:"kf_tournament_entries"}, function(){ refreshTournLive(); })
-    .on("postgres_changes",{event:"*",schema:"public",table:"kf_tournament_matches"}, function(){ refreshTournLive(); })
+    .on("postgres_changes",{event:"*",schema:"public",table:"kf_tournament_entries"}, function(){ if(!document.hidden)refreshTournLive(); })
+    .on("postgres_changes",{event:"*",schema:"public",table:"kf_tournament_matches"}, function(){ if(!document.hidden)refreshTournLive(); })
     .on("postgres_changes",{event:"UPDATE",schema:"public",table:"kf_tournaments"}, function(p){ handleTournUpdate(p.new); });
   tournChannel = channel;
   channel.subscribe(function(status){
@@ -3098,12 +3102,12 @@ function handleTournUpdate(row){
   if(!row) return;
   if(tournCurrent && row.id === tournCurrent.id){
     tournCurrent = row;
-    if(row.status === "completed"){
+    if(row.status === "completed"&&!document.hidden){
       loadChampion();
       loadLastTournamentState();
     }
     updateTournButton();
-    if($("tournDialog").open && tournView === "next") refreshTournLive();
+    if(!document.hidden&&$("tournDialog").open && tournView === "next") refreshTournLive();
   }
 }
 
@@ -3141,6 +3145,8 @@ function updateTournButton(){
 
 function startTournTick(){
   if(tournTickTimer) clearInterval(tournTickTimer);
+  tournTickTimer=null;
+  if(document.hidden)return;
   tournTickTimer = setInterval(function(){
     updateTournButton();
     if($("tournDialog").open && tournCurrent) updateTournBigTimer();
@@ -3469,6 +3475,8 @@ function launchConfetti(){
 
 function startTournMatchWatcher(){
   if(tournMatchCheckTimer) clearInterval(tournMatchCheckTimer);
+  tournMatchCheckTimer=null;
+  if(document.hidden)return;
   tournMatchCheckTimer = setInterval(checkTournMatchStatus, 2000);
 }
 
@@ -3727,10 +3735,10 @@ var kfGameRecoveryTimer=null;
 var kfGameReloadPromise=null;
 var kfGameReloadId=null;
 function kfScheduleGameStateRecovery(gameId){
-  if(!sb || !gameId || onlineGameId!==gameId || kfGameRecoveryTimer!=null) return;
+  if(document.hidden||!sb || !gameId || onlineGameId!==gameId || kfGameRecoveryTimer!=null) return;
   kfGameRecoveryTimer=setTimeout(function(){
     kfGameRecoveryTimer=null;
-    if(onlineGameId===gameId) reloadGameState(gameId);
+    if(!document.hidden&&onlineGameId===gameId) reloadGameState(gameId);
   },2000);
 }
 async function reloadGameState(gameId){
@@ -3755,13 +3763,33 @@ async function reloadGameState(gameId){
   try{await promise;}
   finally{if(kfGameReloadPromise===promise){kfGameReloadPromise=null;kfGameReloadId=null;}}
 }
-// When a backgrounded game returns to the foreground, re-read the server state.
-// The full reconnect recovery below handles requests that remained stuck during an outage.
+// Stop repeating network and visual work in background; Realtime stays connected.
 document.addEventListener("visibilitychange", function(){
-  if (document.visibilityState === "visible" && onlineGameId && navigator.onLine) {
-    reloadGameState(onlineGameId);
-    kfSyncClock(onlineGameId);
+  kfSetClockDisplayVisibility();
+  startTournTick();
+  startTournMatchWatcher();
+  kfRefreshGamePolling();
+  kfUpdateQueuePollVisibility();
+  kfStartFeatureRefresh();
+  kfStartChampionRefresh();
+  if(document.hidden){
+    if(kfClockSyncTimer){clearInterval(kfClockSyncTimer);kfClockSyncTimer=null;}
+    if(gfsNameMarqueeTimer){clearInterval(gfsNameMarqueeTimer);gfsNameMarqueeTimer=null;}
+    return;
   }
+  startFullscreenNameMarquee();
+  if(!navigator.onLine)return;
+  if(onlineGameId){
+    reloadGameState(onlineGameId);
+    kfStartClockSync(onlineGameId);
+  }
+  if(kfQueueSearching)pollQueue();
+  // Refresh cached tournament data once, then check for an assigned match.
+  window._lastTournRefresh=Date.now();
+  loadTournamentState().then(function(){checkTournMatchStatus();})
+    .catch(function(err){console.warn("Tournament resume refresh failed:",err);});
+  loadFeatureFlags();
+  loadChampion();
 });
 async function handleTournamentTimeout(loserColor){
   await handleOnlineTimeout(loserColor);
@@ -3787,7 +3815,17 @@ async function getCurrentProfile(){
   };
 }
 
+function kfUpdateQueuePollVisibility(){
+  if(queuePoll){clearInterval(queuePoll);queuePoll=null;}
+  if(!kfQueueSearching||document.hidden)return;
+  queuePoll=setInterval(function(){if(!document.hidden)pollQueue();},1800);
+}
+function kfStartQueuePoll(){
+  kfQueueSearching=true;
+  kfUpdateQueuePollVisibility();
+}
 async function stopQueuePoll(){
+  kfQueueSearching=false;
   if(queuePoll){ clearInterval(queuePoll); queuePoll = null; }
   if(queueTimeout){ clearTimeout(queueTimeout); queueTimeout = null; }
 }
@@ -3868,7 +3906,7 @@ function showVsAnimation(myName, myAvatar, oppName, oppAvatar) {
   });
   }
 function kfRefreshGamePolling(){
-  var needsFallback = kfGamePollingEnabled && sb && onlineGameId &&
+  var needsFallback = !document.hidden && kfGamePollingEnabled && sb && onlineGameId &&
     onlineGame && onlineGame.status === "active" &&
     !kfGamePostgresConnected && !kfGameBroadcastConnected;
   if(!needsFallback){
@@ -4433,8 +4471,14 @@ function tickClock(){
   paintClocks();
 }
 
-// Refresh displayed clocks four times per second (server timing remains authoritative).
-setInterval(tickClock, 250);
+// The server clock continues; only the 250ms display timer pauses while hidden.
+var kfClockDisplayTimer=null;
+function kfSetClockDisplayVisibility(){
+  if(kfClockDisplayTimer){clearInterval(kfClockDisplayTimer);kfClockDisplayTimer=null;}
+  if(document.hidden)return;
+  kfClockDisplayTimer=setInterval(tickClock,250);
+}
+kfSetClockDisplayVisibility();
 
 /* ===== FIRST MOVE DEADLINE (UI only; database owns the deadline/result) ===== */
 function updateFirstMoveDeadlineUI(){
@@ -4500,7 +4544,7 @@ async function startQuickPlay(){
       await loadOnlineGame(data.game_id);
     } else {
       setQuickState("Searching by closest win total · 5 min…", {lock: true, cancel: true});
-      queuePoll = setInterval(pollQueue, 1800);
+      kfStartQueuePoll();
       queueTimeout = setTimeout(async function(){
         if(onlineGameId) return;
         await cancelQuickPlay();
@@ -4608,7 +4652,7 @@ function runFullscreenNameMarquee(){
 }
 function startFullscreenNameMarquee(){
   if(gfsNameMarqueeTimer) clearInterval(gfsNameMarqueeTimer);
-  if(!document.body.classList.contains("game-focus")) return;
+  if(!document.body.classList.contains("game-focus")||document.hidden) return;
   gfsNameMarqueeTimer = setInterval(runFullscreenNameMarquee, 30000);
 }
 function stopFullscreenNameMarquee(){
@@ -5748,7 +5792,7 @@ async function startRoulette(){
       await loadOnlineGame(data.game_id);
     } else {
       setRouletteState("Searching · 5 min game…", {lock: true, cancel: true});
-      queuePoll = setInterval(pollQueue, 1800);
+      kfStartQueuePoll();
       queueTimeout = setTimeout(async function(){
         if(onlineGameId) return;
         await cancelQuickPlay();
@@ -5781,7 +5825,7 @@ async function startBloodblade(){
    await loadOnlineGame(data.game_id);
   }else{
    setBloodbladeState("Searching by wins…",{lock:true,cancel:true});
-   queuePoll=setInterval(pollQueue,1800);
+   kfStartQueuePoll();
    queueTimeout=setTimeout(async function(){if(onlineGameId)return;await cancelQuickPlay();say("No Bloodblade opponents found.",{silentToast:true});},120000);
    await pollQueue();
   }
@@ -8167,12 +8211,18 @@ function initApp(){
   start();
   startTournTick();
   startTournMatchWatcher();
-  setInterval(loadChampion, 60000);
+  kfStartChampionRefresh();
 }
 
 /* Champion loader (moved here so initApp has it) */
+var kfChampionRefreshTimer=null;
+function kfStartChampionRefresh(){
+  if(kfChampionRefreshTimer){clearInterval(kfChampionRefreshTimer);kfChampionRefreshTimer=null;}
+  if(document.hidden)return;
+  kfChampionRefreshTimer=setInterval(loadChampion,60000);
+}
 async function loadChampion(){
-  if(!sb) return;
+  if(document.hidden||!sb) return;
   var res = await sb.rpc("kf_get_current_champion");
   if(res.error || !res.data) return;
   var d = res.data;
@@ -8825,7 +8875,7 @@ function applyFeatureFlagsToUI(f){
 function startFeatureFlagRealtime(){
  if(!sb||kfFeatureChannel||!sb.channel)return;
  kfFeatureChannel=sb.channel("kf-feature-flags")
-  .on("postgres_changes",{event:"*",schema:"public",table:"kf_feature_flags"},function(){loadFeatureFlags();})
+  .on("postgres_changes",{event:"*",schema:"public",table:"kf_feature_flags"},function(){if(!document.hidden)loadFeatureFlags();})
   .subscribe(function(status){if(status==="CHANNEL_ERROR"||status==="TIMED_OUT")console.warn("Feature flag realtime unavailable; periodic refresh remains active.");});
 }
 async function loadFeatureFlags(){
@@ -8837,13 +8887,14 @@ async function loadFeatureFlags(){
  }catch(error){console.warn("Feature flag refresh failed",error);}
  finally{kfFeatureLoadBusy=false;}
 }
-// Realtime normally applies changes immediately; this lightweight fallback also
-// recovers from temporary mobile-network or websocket interruptions.
-setInterval(loadFeatureFlags,30000);
-setInterval(function(){
- if(currentUser&&currentUser.id===adminOwnerId&&$("pageAdmin").classList.contains("active")&&!$("adminOverviewView").hidden){
-  }
-},30000);
+// Realtime remains live; periodic feature refresh pauses in background.
+var kfFeatureRefreshTimer=null;
+function kfStartFeatureRefresh(){
+  if(kfFeatureRefreshTimer){clearInterval(kfFeatureRefreshTimer);kfFeatureRefreshTimer=null;}
+  if(document.hidden)return;
+  kfFeatureRefreshTimer=setInterval(loadFeatureFlags,30000);
+}
+kfStartFeatureRefresh();
 
 /* ===== HONORS PAGE ===== */
 var honorsLoadSequence = 0;
