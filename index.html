@@ -6894,21 +6894,12 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
       // One server-controlled path for ordinary moves and every ending.
       // PostgreSQL derives the authoritative status and result; browser
       // checkmate/stalemate claims are never trusted.
-      res = await sb.rpc("kf_submit_browser_fast_v1", {
+      res = await sb.rpc("kf_submit_move_v3", {
         p_game_id: onlineGameId,
         p_expected_fen: onlineGame.fen,
         p_from: m.from,
         p_to: m.to,
         p_promotion: m.promotion || null,
-        p_san: m.san,
-        p_fen: game.fen(),
-        p_pgn: game.pgn(),
-        p_turn: game.turn(),
-        // The server independently derives mate. Never trust terminal claims
-        // from the browser on the fast route.
-        p_status: "active",
-        p_result: null,
-        p_winner_id: null,
         p_request_id: crypto.randomUUID()
       });
     }
@@ -7009,8 +7000,8 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
     // Keep the confirmed position in sync for the next fast move/premove.
     // This is only reached after the server accepts the move; deferred
     // Realtime snapshots are reconciled in finally below.
-    onlineGame.fen = game.fen();
-    onlineGame.pgn = game.pgn();
+    onlineGame.fen = res.data.fen;
+    onlineGame.pgn = res.data.pgn;
     onlineGame.white_time_left = res.data.white_time_left;
     onlineGame.black_time_left = res.data.black_time_left;
     onlineGame.last_move = {from: m.from, to: m.to, san: m.san};
@@ -7032,7 +7023,7 @@ async function submitMove(m, clientWhite, clientBlack, moveStartedAt, isPremove)
        !kfPremoveQueued.serverPending&&!kfPremoveQueued.serverReady&&
        !kfPremoveQueued.expectedFen&&onlineGame.turn!==m.color){
       kfQueueServerPremove(kfPremoveQueued);
-      if(kfMultiPremoveQueue.length===2)kfQueueSecondServerPremove();
+
     }
 
   } catch(err) {
@@ -7558,7 +7549,7 @@ function updateHistory(){
 var kfPremoveSelected=null,kfPremoveQueued=null,kfPremoveGameId=null;
 var kfPremoveQueueSerial=0;
 var kfMultiPremoveQueue=[],kfMultiPremovePending=false;
-var kfPairStored=false,kfPairRequest=null,kfPairRequestChain=Promise.resolve();
+var kfPairRequestChain=Promise.resolve();
 // Cache a single authoritative PGN replay across the several premove checks
 // caused by one fast Realtime snapshot. Never trust this cache across PGNs.
 var kfPremoveReplayPgn=null,kfPremoveReplayIndex=null;
@@ -7573,7 +7564,7 @@ function kfScheduleMoveReconcile(gid){
     if(onlineGameId===gid)syncGameState(gid);
   },240);
 }
-function kfMultiReset(){kfMultiPremoveQueue=[];kfMultiPremovePending=false;kfPairStored=false;kfPremoveSelected=null;kfPremoveQueued=null;}
+function kfMultiReset(){kfMultiPremoveQueue=[];kfMultiPremovePending=false;kfPremoveSelected=null;kfPremoveQueued=null;}
 function kfProjectedPiece(s){
   var p=game.get(s);
   kfMultiPremoveQueue.forEach(function(x){
@@ -7595,7 +7586,7 @@ function kfPremoveCommittedAfterFen(row,pm){
       var replay=new Chess();
       if(!replay.load_pgn(row.pgn))throw Error("Invalid move history");
       var moves=replay.history({verbose:true});
-      replay=new Chess();
+      replay=new Chess(moves.length && moves[0].before || undefined);
       var previousFen=null;
       for(var j=0;j<moves.length;j++){
         var beforeFen=replay.fen(),mv=moves[j];
@@ -7626,22 +7617,20 @@ function kfMultiAdvance(row){
      row.turn!==(row.white_id===currentUser.id?"w":"b"))
     afterFen=row.fen;
   kfPremoveSelected=null;kfPremoveQueueSerial++;
-  if(kfPairStored&&kfMultiPremoveQueue.length&&afterFen){
+  if(kfMultiPremoveQueue.length&&afterFen&&kfMultiPremoveQueue[0].serverReady){
     var next=kfMultiPremoveQueue[0];
     next.expectedFen=afterFen;
-    next.kfPairFirst={from:next.from,to:next.to,promotion:next.promotion||null};
     kfPremoveQueued=next;
     next.serverReady=true;
     kfMultiPremovePending=false;
-    kfPairStored=false;
+    // Remaining premoves are already queued in PostgreSQL.
+    if(kfMultiPremoveQueue.some(function(pm){return !pm.serverReady;}))kfQueueAdditionalServerPremoves();
   }else{
-    kfPairStored=false;
     kfPremoveQueued=null;
     kfMultiPremovePending=true;
   }
 }
 function kfMultiArm(row){
-  if(kfPairStored && kfMultiPremoveQueue.length===2)return;
   if(!kfMultiPremovePending||!currentUser||row.status!=="active")return;
   var mine=row.white_id===currentUser.id?"w":row.black_id===currentUser.id?"b":null;
   if(!mine||row.turn===mine)return;
@@ -7652,69 +7641,56 @@ function kfMultiArm(row){
 }
 function kfCancelQueuedServerPremove(){
   kfPremoveQueueSerial++;
-  kfPairStored=false;
+  
   var gid=onlineGameId;
   // Serialized with in-flight queue writes: a delayed old response must
   // never reinstall a cancelled premove.
   if(sb&&gid)kfPairRequestChain=kfPairRequestChain.catch(function(){})
     .then(function(){return sb.rpc("kf_cancel_premove_compact_v3",{p_game_id:gid});});
 }
-// The client stores at most two *moves*, never speculative opponent FEN/PGN.
+// The client stores at most three *moves*, never speculative opponent FEN/PGN.
 // PostgreSQL generates the authoritative successor position on execution.
 function kfQueueServerPremove(pm){
   if(!sb||!onlineGame||!onlineGameId||!pm)return;
   var expected=onlineGame.fen,gid=onlineGameId;
-  var serial=++kfPremoveQueueSerial;
-  pm.expectedFen=expected;pm.serverPending=true;
-  pm.terminalOpponentFens=null;
-  var first={from:pm.from,to:pm.to,promotion:pm.promotion||null};
-  pm.kfPairFirst=first;
-  pm.kfPairGameId=gid;
-  kfPairRequestChain=kfPairRequestChain.catch(function(){})
-    .then(function(){
-      return sb.rpc("kf_queue_premove_compact_v3",{
-        p_game_id:gid,p_expected_fen:expected,p_moves:[first]
-      });
-    });
-  kfPairRequestChain.then(function(res){
-    if(serial!==kfPremoveQueueSerial||onlineGameId!==gid||
-       kfPremoveQueued!==pm)return;
-    pm.serverPending=false;
-    pm.serverReady=!res.error&&res.data===true;
-    if(!pm.serverReady&&onlineGame&&onlineGame.status==="active"){
-      // Never submit an unconfirmed premove through the normal move RPC.
-      kfMultiReset();draw();
-    }
-  }).catch(function(){pm.serverPending=false;});
-  if(kfMultiPremoveQueue.length===2)kfQueueSecondServerPremove();
+  pm.expectedFen=expected;
+  kfPublishPremoveQueue(gid,expected);
 }
-function kfQueueSecondServerPremove(){
-  if(!sb||kfMultiPremoveQueue.length!==2||!onlineGame||!onlineGameId)return;
-  var firstPm=kfMultiPremoveQueue[0],secondPm=kfMultiPremoveQueue[1];
-  var first=firstPm.kfPairFirst,gid=onlineGameId;
-  if(!first||!firstPm.expectedFen)return;
-  var expected=firstPm.expectedFen;
+function kfQueueAdditionalServerPremoves(){
+  var head=kfMultiPremoveQueue[0];
+  if(sb && head && head.expectedFen && onlineGameId)
+    kfPublishPremoveQueue(onlineGameId,head.expectedFen);
+}
+function kfPublishPremoveQueue(gid,expected){
+  var pending=kfMultiPremoveQueue.slice(),head=pending[0];
+  if(!head||pending.length>3)return;
   var serial=++kfPremoveQueueSerial;
-  firstPm.serverPending=true;
-  var second={from:secondPm.from,to:secondPm.to,promotion:secondPm.promotion||null};
-  // The second queue upgrade is ordered behind the first write, so a
-  // delayed single-slot response cannot overwrite the two-slot queue.
-  kfPairRequestChain=kfPairRequestChain.catch(function(){})
-    .then(function(){
-      return sb.rpc("kf_queue_premove_compact_v3",{
-        p_game_id:gid,p_expected_fen:expected,p_moves:[first,second]
+  head.serverPending=true;
+  var items=pending.map(function(pm){
+    return {from:pm.from,to:pm.to,promotion:pm.promotion||null};
+  });
+  kfPairRequestChain=kfPairRequestChain.catch(function(){}).then(async function(){
+    if(serial!==kfPremoveQueueSerial||gid!==onlineGameId||kfMultiPremoveQueue[0]!==head)return;
+    try{
+      var res=await sb.rpc("kf_queue_premove_compact_v3",{
+        p_game_id:gid,p_expected_fen:expected,p_moves:items
       });
-    });
-  kfPairRequestChain.then(function(res){
-    if(serial!==kfPremoveQueueSerial||onlineGameId!==gid||
-       kfMultiPremoveQueue[0]!==firstPm||
-       kfMultiPremoveQueue[1]!==secondPm)return;
-    firstPm.serverPending=false;
-    if(!res.error&&res.data===true){
-      kfPairStored=true;firstPm.serverReady=true;
-      secondPm.serverReady=true;
+      if(gid!==onlineGameId||kfMultiPremoveQueue[0]!==head)return;
+      if(!res.error&&res.data===true){
+        pending.forEach(function(pm){pm.serverReady=true;});
+      }else if(serial===kfPremoveQueueSerial){
+        if(res.error)say("Premove queue could not be saved.",{error:true});
+        kfScheduleMoveReconcile(gid);
+      }
+    }catch(error){
+      if(serial===kfPremoveQueueSerial){
+        say("Premove queue could not be saved.",{error:true});
+        kfScheduleMoveReconcile(gid);
+      }
+    }finally{
+      if(serial===kfPremoveQueueSerial)head.serverPending=false;
     }
-  }).catch(function(){firstPm.serverPending=false;});
+  });
 }
 // Fast, speculative premove geometry. Opponent pieces may move before
 // execution, so this deliberately does not claim future legality.
@@ -7766,8 +7742,8 @@ async function kfHandlePremoveSquare(square,color){
   if(!kfPremoveSelected)return;
   var from=kfPremoveSelected;kfPremoveSelected=null;
   if(!kfPremoveGeometry(from,square,color)){draw();return;}
-  if(kfMultiPremoveQueue.length>=2){
-    say("Maximum two premoves.",{silentToast:true});draw();return;
+  if(kfMultiPremoveQueue.length>=3){
+    say("Maximum three premoves.",{silentToast:true});draw();return;
   }
   var src=kfProjectedPiece(from),promotion=null;
   if(src.type==="p"&&square[1]===(color==="w"?"8":"1")){
@@ -7781,9 +7757,9 @@ async function kfHandlePremoveSquare(square,color){
     kfPremoveQueued=pm;
     // Selection can precede confirmation, but never send an unconfirmed FEN.
     if(!submittingMove&&!kfPendingClockMove)kfQueueServerPremove(pm);
-  }else if(kfMultiPremoveQueue.length===2){
-    // Preparation is asynchronous; the server still owns actual execution.
-    kfQueueSecondServerPremove();
+  }else if(kfMultiPremoveQueue.length>=2){
+    // Send the complete pending two- or three-slot queue.
+    kfQueueAdditionalServerPremoves();
   }
   draw();
 }
