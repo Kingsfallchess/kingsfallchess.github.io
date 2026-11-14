@@ -4131,8 +4131,28 @@ if(game && row.fen && game.fen()!==row.fen){
     }
     if(!kfLoaded || game.fen()!==row.fen)game.load(row.fen);
     last=row.last_move||null;
+    // Incoming rapid opponent moves must not discard an already selected
+    // friendly piece. Recalculate its legal destinations against the newly
+    // confirmed board; never submit a move from a stale position.
+    var kfOwnColor=currentUser&&row.white_id===currentUser.id?"w":
+      currentUser&&row.black_id===currentUser.id?"b":null;
+    var kfSelectionToKeep=selected||kfPremoveSelected;
     selected=null;
     targets=[];
+    if(kfSelectionToKeep&&kfOwnColor&&row.status==="active"){
+      var kfKeptPiece=game.get(kfSelectionToKeep);
+      if(kfKeptPiece&&kfKeptPiece.color===kfOwnColor){
+        if(game.turn()===kfOwnColor){
+          selected=kfSelectionToKeep;
+          kfPremoveSelected=null;
+          targets=game.moves({square:selected,verbose:true});
+        }else{
+          kfPremoveSelected=kfSelectionToKeep;
+        }
+      }else{
+        kfPremoveSelected=null;
+      }
+    }
     kfBoardNeedsDraw=true;
   }catch(e){
     say("Received an invalid game position.",{error:true});
