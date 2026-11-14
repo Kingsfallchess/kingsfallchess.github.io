@@ -7617,32 +7617,45 @@ function draw(){
   if(!_boardBuilt || _boardFlipped !== flipped){
     buildBoardOnce();
   }
-  var targetsSet = {};
+  // Read the chess position and premove display state once per board paint.
+  // The server-authoritative game and the premove queue are not mutated here.
+  var boardSnapshot = game.board();
+  var gameTurn = game.turn();
+  var pmColor = onlineGame && currentUser ?
+    (onlineGame.white_id===currentUser.id?"w":onlineGame.black_id===currentUser.id?"b":null):null;
+  var pmVisible = !!(onlineGameId && onlineGame && currentUser &&
+    onlineGame.status==="active" && pmColor!==gameTurn);
+  var pmPreview = !!(pmVisible && pmColor && kfPremoveQueued && kfPremoveGameId===onlineGameId);
+  var premoveToSquares = Object.create(null);
+  var premoveFromSquares = Object.create(null);
+  var projectedSquares = pmPreview && kfMultiPremoveQueue.length ? Object.create(null) : null;
+  for(var qi=0;qi<kfMultiPremoveQueue.length;qi++){
+    var queuedPm = kfMultiPremoveQueue[qi];
+    premoveToSquares[queuedPm.to] = true;
+    premoveFromSquares[queuedPm.from] = true;
+    if(projectedSquares){
+      // Same sequential visual-only overlay as kfProjectedPiece().
+      projectedSquares[queuedPm.from] = null;
+      projectedSquares[queuedPm.to] = {type:queuedPm.promotion||queuedPm.piece.type,color:queuedPm.piece.color};
+    }
+  }
+  var targetsSet = Object.create(null);
   for(var k=0;k<targets.length;k++) targetsSet[targets[k].to] = true;
   for(var vr=0;vr<8;vr++){
     for(var vc=0;vc<8;vc++){
       var r = flipped ? 7-vr : vr;
       var c = flipped ? 7-vc : vc;
       var s = sq(r, c);
-      var p = game.get(s);
-      // Visual-only premove: render the selected piece at its destination
-      // without ever mutating the authoritative chess.js position.
-      var pmColor = onlineGame&&currentUser?
-        (onlineGame.white_id===currentUser.id?"w":onlineGame.black_id===currentUser.id?"b":null):null;
-      var pmPreview = !!(onlineGameId&&onlineGame&&onlineGame.status==="active"&&
-        pmColor&&game.turn()!==pmColor&&kfPremoveQueued&&kfPremoveGameId===onlineGameId);
-      if(pmPreview){
-        if(kfMultiPremoveQueue.length)p=kfProjectedPiece(s);
-      }
+      // chess.js board() is indexed from rank 8 to 1, matching sq(r,c).
+      var p = projectedSquares && s in projectedSquares ?
+        projectedSquares[s] : boardSnapshot[r][c];
       var b = _sqEls[s];
       if(!b) continue;
       var kfSquareMarkupCache = "";
       b.classList.toggle("selected", selected === s);
-      var pmVisible=!!(onlineGameId&&onlineGame&&currentUser&&onlineGame.status==="active"&&
-        (onlineGame.white_id===currentUser.id?"w":onlineGame.black_id===currentUser.id?"b":null)!==game.turn());
       b.classList.toggle("kf-premove-from",pmVisible&&kfPremoveSelected===s);
-      b.classList.toggle("kf-premove-to",pmVisible&&kfMultiPremoveQueue.some(function(pm){return pm.to===s;}));
-      b.classList.toggle("kf-premove-queued",pmVisible&&kfMultiPremoveQueue.some(function(pm){return pm.from===s;}));
+      b.classList.toggle("kf-premove-to",pmVisible&&!!premoveToSquares[s]);
+      b.classList.toggle("kf-premove-queued",pmVisible&&!!premoveFromSquares[s]);
       b.classList.remove("humil-dim", "humil-target");
       b.style.backgroundImage = "";
       if(humilSelecting){
