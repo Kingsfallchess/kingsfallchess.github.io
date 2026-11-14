@@ -2361,6 +2361,11 @@ var queuePoll = null;
 var queueTimeout = null;
 var gameChannel = null;
 var onlineGamePolling = null;
+// Fallback database polling is enabled only when both live game feeds are down.
+var kfGamePollingEnabled = false;
+var kfGamePostgresConnected = false;
+var kfGameBroadcastConnected = false;
+var kfGamePollBusy = false;
 // Authenticated, per-game Broadcast for fast move delivery. PostgreSQL
 // Changes remains the fallback for dropped/reconnecting Broadcast channels.
 var kfGameBroadcastChannel=null;
@@ -2369,6 +2374,8 @@ function kfStopGameBroadcast(){
   var previous=kfGameBroadcastChannel;
   kfGameBroadcastChannel=null;
   kfGameBroadcastId=null;
+  kfGameBroadcastConnected=false;
+  kfRefreshGamePolling();
   if(previous&&sb)sb.removeChannel(previous);
 }
 function kfReceivePostgresGameRow(row){
@@ -2401,7 +2408,9 @@ function kfStartGameBroadcast(gameId,row){
     if(!token){console.warn("Game Broadcast unavailable: no signed-in session");return;}
     sb.realtime.setAuth(token);
     channel.subscribe(function(status){
-      if(kfGameBroadcastChannel!==channel)return;
+      if(kfGameBroadcastChannel!==channel||onlineGameId!==gameId)return;
+      kfGameBroadcastConnected=(status==="SUBSCRIBED");
+      kfRefreshGamePolling();
       if(status==="CHANNEL_ERROR"||status==="TIMED_OUT"||status==="CLOSED")
         console.warn("Game Broadcast unavailable; PostgreSQL fallback remains active:",status);
     });
@@ -3645,10 +3654,10 @@ async function joinTournamentGame(gameId, skipIntro){
   }
   var data = res.data;
   if($("tournDialog").open) $("tournDialog").close();
-    startGamePolling();
   kfStopGameBroadcast(); if(gameChannel && sb){ sb.removeChannel(gameChannel); gameChannel = null; }
   onlineGameId = gameId;
   onlineGame = data;
+  startGamePolling();
   resetClocks();
   kfStartClockSync(gameId);
   lastClockAt = Date.now();
@@ -3685,14 +3694,18 @@ async function joinTournamentGame(gameId, skipIntro){
     });
   }
 
-  gameChannel = sb.channel("kf-game-" + gameId)
-    .on("postgres_changes", {event:"UPDATE", schema:"public", table:"kf_games", filter:"id=eq." + gameId}, function(payload){ kfReceivePostgresGameRow(payload.new); })
-    .subscribe(function(status){
-      if(status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"){
-        console.warn("Game channel issue:", status);
-        kfScheduleGameStateRecovery(gameId);
-      }
-    });
+  var tournamentGameChannel = sb.channel("kf-game-" + gameId)
+    .on("postgres_changes", {event:"UPDATE", schema:"public", table:"kf_games", filter:"id=eq." + gameId}, function(payload){ kfReceivePostgresGameRow(payload.new); });
+  gameChannel = tournamentGameChannel;
+  tournamentGameChannel.subscribe(function(status){
+    if(gameChannel!==tournamentGameChannel||onlineGameId!==gameId)return;
+    kfGamePostgresConnected=(status==="SUBSCRIBED");
+    kfRefreshGamePolling();
+    if(status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED"){
+      console.warn("Game channel issue:", status);
+      kfScheduleGameStateRecovery(gameId);
+    }
+  });
   kfStartGameBroadcast(gameId,data);
   return true;
 }
@@ -3854,21 +3867,35 @@ function showVsAnimation(myName, myAvatar, oppName, oppAvatar) {
     }, 2500);
   });
   }
-  function startGamePolling() {
-  if(onlineGamePolling) clearInterval(onlineGamePolling);
-  onlineGamePolling = setInterval(function() {
-    // فقط وقتی بازی فعاله و ما وسط ارسال حرکت نیستیم، چک میکنه
-    if(onlineGameId && onlineGame && onlineGame.status === "active" && !submittingMove && !clockExpired) {
-    syncGameState(onlineGameId);
-    }
-  }, 2000); // هر 2 ثانیه
-}
-
-function stopGamePolling() {
-  if(onlineGamePolling) { 
-    clearInterval(onlineGamePolling); 
-    onlineGamePolling = null; 
+function kfRefreshGamePolling(){
+  var needsFallback = kfGamePollingEnabled && sb && onlineGameId &&
+    onlineGame && onlineGame.status === "active" &&
+    !kfGamePostgresConnected && !kfGameBroadcastConnected;
+  if(!needsFallback){
+    if(onlineGamePolling){clearInterval(onlineGamePolling);onlineGamePolling=null;}
+    return;
   }
+  if(onlineGamePolling)return;
+  // No REST polling while either Realtime feed is subscribed.
+  // Only a total Realtime outage enables the 3-second recovery interval.
+  onlineGamePolling=setInterval(function(){
+    if(!kfGamePollingEnabled || kfGamePostgresConnected || kfGameBroadcastConnected ||
+       document.hidden || !navigator.onLine || !onlineGameId || !onlineGame ||
+       onlineGame.status!=="active" || submittingMove || kfPendingClockMove ||
+       clockExpired || kfGamePollBusy)return;
+    kfGamePollBusy=true;
+    syncGameState(onlineGameId).finally(function(){kfGamePollBusy=false;});
+  },3000);
+}
+function startGamePolling(){
+  kfGamePollingEnabled=true;
+  kfGamePostgresConnected=false;
+  kfGameBroadcastConnected=false;
+  kfRefreshGamePolling();
+}
+function stopGamePolling(){
+  kfGamePollingEnabled=false;
+  if(onlineGamePolling){clearInterval(onlineGamePolling);onlineGamePolling=null;}
 }
   
 async function loadOnlineGame(id, skipIntro){
@@ -3881,7 +3908,6 @@ async function loadOnlineGame(id, skipIntro){
   var data = res.data;
   if(currentGameIsRoulette) rouletteOpeningAnimating = true;
   await stopQueuePoll();
-  startGamePolling();
   // مراسم شروع فقط برای ورود اولیه به بازی اجرا می‌شود؛ بازیابی اتصال نباید آن را تکرار کند.
   if(!skipIntro){
     var myIsWhite = (data.white_id === currentUser.id);
@@ -3897,6 +3923,7 @@ async function loadOnlineGame(id, skipIntro){
   kfStopGameBroadcast(); if(gameChannel) sb.removeChannel(gameChannel);
   onlineGameId = id;
   onlineGame = data;
+  startGamePolling();
   resetClocks();
   kfStartClockSync(id);
   lastClockAt = Date.now();
@@ -3915,16 +3942,20 @@ async function loadOnlineGame(id, skipIntro){
   draw();
   updateHumilBadge();
   updateFirstMoveDeadlineUI();
-  gameChannel = sb.channel("kf-game-" + id)
+  var normalGameChannel = sb.channel("kf-game-" + id)
     .on("postgres_changes", {event:"UPDATE", schema:"public", table:"kf_games", filter:"id=eq." + id}, function(payload){
       if(payload.new && payload.new.id === onlineGameId) kfReceivePostgresGameRow(payload.new);
-    })
-    .subscribe(function(status){
-      if(status==="CHANNEL_ERROR" || status==="TIMED_OUT" || status==="CLOSED"){
-        console.warn("Game channel issue:",status);
-        kfScheduleGameStateRecovery(id);
-      }
     });
+  gameChannel = normalGameChannel;
+  normalGameChannel.subscribe(function(status){
+    if(gameChannel!==normalGameChannel||onlineGameId!==id)return;
+    kfGamePostgresConnected=(status==="SUBSCRIBED");
+    kfRefreshGamePolling();
+    if(status==="CHANNEL_ERROR" || status==="TIMED_OUT" || status==="CLOSED"){
+      console.warn("Game channel issue:",status);
+      kfScheduleGameStateRecovery(id);
+    }
+  });
 kfStartGameBroadcast(id,data);
 if(currentGameIsRoulette){
   // Roulette is server-authoritative: both players receive the same stored line.
