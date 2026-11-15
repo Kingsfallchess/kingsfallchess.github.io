@@ -651,7 +651,7 @@ async function runFullAnalysis(runId){
   closeAnalysisAuxEngines();
   kfSetAnalysisProgress(runId,100);
   if(kfExceptionalTrialActive)
-    $("anProgressPercent").textContent="100% · "+(totalElapsed/1000).toFixed(1)+"s · Special "+(exceptionalElapsed/1000).toFixed(1)+"s";
+    $("anProgressPercent").textContent=(kfExceptionalTest==="paired"?"MultiPV=2":"Sequential")+" · "+(totalElapsed/1000).toFixed(1)+"s · Special "+(exceptionalElapsed/1000).toFixed(1)+"s";
   else if(kfCriticalTrialActive)
     $("anProgressPercent").textContent="100% · "+(totalElapsed/1000).toFixed(1)+"s · "+kfCriticalMoveTime+"ms";
   analysisMoves = moves;
