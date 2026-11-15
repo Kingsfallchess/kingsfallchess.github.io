@@ -9,11 +9,12 @@ var adminReviewedPlayer = null;
 var kfCriticalTrial = new URLSearchParams(window.location.search).get("criticalTest");
 var kfCriticalTrialActive = kfCriticalTrial === "1200" || kfCriticalTrial === "2300";
 var kfExceptionalTest = new URLSearchParams(window.location.search).get("exceptionalTest");
+var kfUsePairedAnalysis = kfExceptionalTest !== "sequential";
 var kfExceptionalTrialActive = kfExceptionalTest === "paired" || kfExceptionalTest === "sequential";
 var kfCriticalMoveTime = kfExceptionalTrialActive ? 1200 : kfCriticalTrial === "2300" ? 2300 : 1200;
 
 var KF_ANALYSIS_CACHE_KEY = "kf_analysis_local_cache_v1";
-var KF_ANALYSIS_CACHE_VERSION = "sf19-lite-threepass-critical1200-20261116";
+var KF_ANALYSIS_CACHE_VERSION = "sf19-lite-critical1200-multipv2-20261116";
 var KF_ANALYSIS_CACHE_MAX = 12;
 var KF_ANALYSIS_CACHE_TTL = 21 * 24 * 60 * 60 * 1000;
 // This cache is on this browser only. No analysis results are sent to Supabase.
@@ -523,7 +524,7 @@ async function runFullAnalysis(runId){
         return m.from+m.to+(m.promotion||"");
       });
       if(legal.length<2||legal.indexOf(played)<0)return null;
-      if(kfExceptionalTest==="paired"){
+      if(kfUsePairedAnalysis){
         var pairStart=performance.now();
         var pair=await analyzeWithEngine(positions[mi],1650,engineIndex,null,2);
         exceptionalTiming.multiMs+=performance.now()-pairStart;
@@ -651,7 +652,7 @@ async function runFullAnalysis(runId){
   closeAnalysisAuxEngines();
   kfSetAnalysisProgress(runId,100);
   if(kfExceptionalTrialActive)
-    $("anProgressPercent").textContent=(kfExceptionalTest==="paired"?"MultiPV=2":"Sequential")+" · "+(totalElapsed/1000).toFixed(1)+"s · Special "+(exceptionalElapsed/1000).toFixed(1)+"s";
+    $("anProgressPercent").textContent=(kfUsePairedAnalysis?"MultiPV=2":"Sequential")+" · "+(totalElapsed/1000).toFixed(1)+"s · Special "+(exceptionalElapsed/1000).toFixed(1)+"s";
   else if(kfCriticalTrialActive)
     $("anProgressPercent").textContent="100% · "+(totalElapsed/1000).toFixed(1)+"s · "+kfCriticalMoveTime+"ms";
   analysisMoves = moves;
