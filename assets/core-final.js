@@ -901,16 +901,12 @@ async function kfHandlePremoveSquare(square,color){
   if(!onlineGameId||!onlineGame||onlineGame.status!=="active")return;
   if(kfPremoveGameId!==onlineGameId){kfPremoveGameId=onlineGameId;kfMultiReset();}
   if(square===kfPremoveSelected){kfPremoveSelected=null;draw();return;}
-  var piece=kfProjectedPiece(square);
-  // An unselected first tap on an empty/opponent square cancels the
-  // entire pending premove queue, even away from its from/to squares.
-  // Tapping one of our projected pieces instead selects the next premove.
-  if(!kfPremoveSelected&&kfMultiPremoveQueue.length&&(!piece||piece.color!==color)){
-    kfCancelQueuedServerPremove();
-    kfMultiReset();
-    draw();
-    return;
+  if(!kfPremoveSelected&&kfMultiPremoveQueue.some(function(x){
+    return x.from===square||x.to===square;
+  })&&!((kfProjectedPiece(square)||{}).color===color)){
+    kfCancelQueuedServerPremove();kfMultiReset();draw();return;
   }
+  var piece=kfProjectedPiece(square);
   if(piece&&piece.color===color&&
       (!kfPremoveSelected||!kfPremoveGeometry(kfPremoveSelected,square,color))){
     kfPremoveSelected=square;draw();return;
