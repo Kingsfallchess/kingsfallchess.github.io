@@ -2208,6 +2208,9 @@ if(!kfPremoveExecuted &&
    (kfBoardNeedsDraw || (row.last_move_at!==prevLastMoveAt && game && row.fen===game.fen())))
   draw();
 
+if(kfBoardNeedsDraw && hasNewMove && prevConfirmedFen && row.fen !== prevConfirmedFen)
+  kfPlayPieceTap(kfDelta && kfDelta.after === row.fen ? kfDelta : row.last_move);
+
 // Keep the realtime-to-premove critical path free of nonessential UI writes.
   /* Humiliation badge for opponent */
   var oppHadHcp = (fsPlayerColor === "w" && isValidHcp(row.black_handicap))
@@ -3072,6 +3075,57 @@ function playHumiliationSound(){
 }
 
 /* ===== Sounds ===== */
+var kfMoveAudio = null;
+var kfMoveBuffers = null;
+
+function kfMakePieceTap(ctx, capture){
+  var rate = 22050, pitch = capture ? 505 : 740;
+  var buffer = ctx.createBuffer(1, Math.ceil(rate * (capture ? 0.078 : 0.055)), rate);
+  var samples = buffer.getChannelData(0);
+  for(var i = 0; i < samples.length; i++){
+    var t = i / rate;
+    var phase = 2 * Math.PI * pitch * t;
+    var body = (Math.sin(phase) + 0.48 * Math.sin(phase * 2.37)) * Math.exp(-t * (capture ? 83 : 118));
+    var attack = (Math.random() * 2 - 1) * Math.exp(-t * 410);
+    samples[i] = (0.28 * body + 0.32 * attack) * Math.min(1, i / 9);
+  }
+  return buffer;
+}
+function kfListenForAudioGesture(enable){
+  var method = enable ? "addEventListener" : "removeEventListener";
+  document[method]("click",kfPreparePieceAudio,true);
+  document[method]("keydown",kfPreparePieceAudio,true);
+}
+function kfPreparePieceAudio(){
+  try{
+    var AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if(!AudioCtor) return;
+    if(!kfMoveAudio){
+      kfMoveAudio = new AudioCtor({latencyHint:"interactive"});
+      kfMoveBuffers = [kfMakePieceTap(kfMoveAudio,false), kfMakePieceTap(kfMoveAudio,true)];
+      kfMoveAudio.onstatechange = function(){
+        kfListenForAudioGesture(kfMoveAudio.state !== "running");
+      };
+    }
+    if(kfMoveAudio.state === "running") kfListenForAudioGesture(false);
+    else kfMoveAudio.resume().catch(function(){});
+  }catch(ignore){}
+}
+kfListenForAudioGesture(true);
+function kfPlayPieceTap(move){
+  if(!kfMoveBuffers || kfMoveAudio.state !== "running" || document.hidden) return;
+  var capture = !!(move && (move.captured || (move.san && move.san.includes("x"))));
+  setTimeout(function(){
+    if(document.hidden || kfMoveAudio.state !== "running") return;
+    try{
+      var source = kfMoveAudio.createBufferSource();
+      source.buffer = kfMoveBuffers[capture ? 1 : 0];
+      source.connect(kfMoveAudio.destination);
+      source.start();
+    }catch(ignore){}
+  },0);
+}
+
 function playWindSound(){
   try{
     var ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -3699,6 +3753,7 @@ async function applyRouletteOpening(opening, firstMoveAtMs, serverOffsetMs){
     selected = null;
     targets = [];
     draw();
+    kfPlayPieceTap(m);
     say(m.san, {silentToast:true});
 
   }
@@ -3991,6 +4046,7 @@ function handleStockfishMessage(line){
     targets = [];
     lastClockAt = Date.now();
     draw();
+    if(m) kfPlayPieceTap(m);
     if(game.game_over()){
       if(game.in_checkmate()) say("Checkmate — " + (game.turn() === "w" ? "Stockfish" : "you") + " wins.", {silentToast: true});
       else say("Draw.", {silentToast: true});

@@ -1122,11 +1122,14 @@ if(m){
  kfStartOptimisticClock(m);
 
   if(onlineGameId){
-    await submitMove(m, Math.floor(clockWhite), Math.floor(clockBlack), moveStartedAt);
+    var submission = submitMove(m, Math.floor(clockWhite), Math.floor(clockBlack), moveStartedAt);
+    kfPlayPieceTap(m);
+    await submission;
     return;
   }
   say(m.san, {silentToast: true});
   draw();
+  kfPlayPieceTap(m);
   if(humilApplied || game.history().length > 0) updateHumilBadge();
   if(computerMode && !game.game_over()){
     lastClockAt = Date.now();
