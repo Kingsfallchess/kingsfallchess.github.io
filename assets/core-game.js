@@ -277,6 +277,7 @@ var humilSelecting = false;
 var rematchRequestTimer = null;
 var rematchDialogShown = false;
 var _rematchAccepting = false;
+var rematchLeavingGameId = null;
 var _celebOnDone = null;
 
 /* Celebration */
@@ -1811,6 +1812,7 @@ async function loadOnlineGame(id, skipIntro){
     return;
   }
   var data = res.data;
+  if(data.fen === "startpos") data.fen = new Chess().fen();
   kfRouletteDeferredGameRow = null;
   if(currentGameIsRoulette) rouletteOpeningAnimating = true;
   await stopQueuePoll();
@@ -1858,10 +1860,10 @@ async function loadOnlineGame(id, skipIntro){
   humilSelecting = false;
   document.body.classList.remove("computer-mode");
   document.body.classList.add("online");
+  if(game && game.fen() !== data.fen) game.load(data.fen);
   enterFullscreenGame(data);
   humilSelecting=!!data.is_bloodblade&&!humilApplied;
   renderPlayers(data);
-  if(game && game.fen() !== data.fen) game.load(data.fen);
   selected = null;
   targets = [];
   last = data.last_move || null;
@@ -2028,7 +2030,8 @@ function kfDrainDeferredGameRow(){
     applyOnlineGame(row);
 }
 function applyOnlineGame(row){
-  if(!row || row.id !== onlineGameId) return;
+  if(!row || row.id !== onlineGameId || row.id === rematchLeavingGameId) return;
+  if(row.fen === "startpos") row = Object.assign({}, row, {fen: new Chess().fen()});
   // The opening animation must not be interrupted by incoming game updates.
   // Cache the newest full server row for reconciliation at animation end.
   if(rouletteOpeningAnimating){
@@ -2279,19 +2282,13 @@ if(row.is_tournament){
       rematchDialogShown = true;
       hideCelebration();
       setTimeout(function(){
-        if(!$("rematchDialog").open) $("rematchDialog").showModal();
+        if(onlineGameId === row.id && rematchDialogShown && !$("rematchDialog").open) $("rematchDialog").showModal();
       }, 100);
       say("🏆 Opponent wants a rematch!", {silentToast: true});
     }
   }
-  if(row.rematch_status === "accepted" && row.rematch_game_id && !_rematchAccepting){
-    var newId = row.rematch_game_id;
-    kfStopGameBroadcast(); if(gameChannel && sb){ sb.removeChannel(gameChannel); gameChannel = null; }
-    hideCelebration();
-    exitFullscreenGame();
-    document.body.classList.remove("online", "computer-mode", "game-focus");
-    currentGameIsRoulette = false;
-    setTimeout(function(){ loadOnlineGame(newId); }, 200);
+  if(row.rematch_status === "accepted" && row.rematch_game_id){
+    enterAcceptedRematch(row.id, row.rematch_game_id);
     return;
   }
   if(row.rematch_status === "declined" && onlineGame && onlineGame.rematch_requested_by === currentUser.id){
@@ -3395,10 +3392,30 @@ async function requestRematch(){
     say("Rematch request expired.", {silentToast: true});
   }, 30000);
 }
+async function enterAcceptedRematch(previousId, nextId){
+  if(onlineGameId !== previousId || rematchLeavingGameId === previousId) return;
+  rematchLeavingGameId = previousId;
+  try{
+    if($("rematchDialog").open) $("rematchDialog").close();
+    rematchDialogShown = false;
+    clearTimeout(rematchRequestTimer);
+    hideCelebration();
+    exitFullscreenGame();
+    document.body.classList.remove("online", "computer-mode", "game-focus");
+    currentGameIsRoulette = false;
+    await loadOnlineGame(nextId);
+  } catch(e){
+    say("Rematch error: " + (e.message || "Unknown"), {error: true});
+  } finally {
+    if(rematchLeavingGameId === previousId) rematchLeavingGameId = null;
+  }
+}
 async function respondRematch(accept){
    if(!sb || !onlineGameId || !onlineGame || !currentUser) return;
   if(onlineGame.rematch_requested_by === currentUser.id) return;
   if(onlineGame.rematch_status !== "pending") return;
+  if(_rematchAccepting) return;
+  var previousId = onlineGameId;
   _rematchAccepting = true;
   try{
     var res = await sb.rpc("kf_respond_rematch", {
@@ -3427,14 +3444,7 @@ async function respondRematch(accept){
     }
     var newGameId = result.new_game_id;
     if(!newGameId) throw new Error("The server did not return the new game ID.");
-    $("rematchDialog").close();
-    rematchDialogShown = false;
-    hideCelebration();
-    exitFullscreenGame();
-    document.body.classList.remove("online", "computer-mode", "game-focus");
-    kfStopGameBroadcast(); if(gameChannel && sb){ sb.removeChannel(gameChannel); gameChannel = null; }
-    currentGameIsRoulette = false;
-    await loadOnlineGame(newGameId);
+    await enterAcceptedRematch(previousId, newGameId);
   } catch(e){
     say("Rematch error: " + (e.message || "Unknown"), {error: true});
   } finally {
@@ -3485,6 +3495,8 @@ async function handleQuickPlayEnd(row){
   var isDraw = row.result === "1/2-1/2" || (!row.winner_id && !row.result);
   var outcome = isDraw ? "draw" : (iWon ? "win" : "loss");
   var currentWins = await getCelebrationWins();
+  if(onlineGameId !== row.id || rematchLeavingGameId === row.id || !onlineGame ||
+     onlineGame.rematch_status === "accepted" || rematchDialogShown) return;
   if(currentWins == null) currentWins = 0;
   var bonus = 0;
   if(iWon){
