@@ -586,28 +586,27 @@ function setRouletteState(text, opts){
   $("rouletteBtn").disabled = !!(opts.lock || onlineGameId);
   }
   /* ============ LEADERBOARD ============ */
-var leaderboardData = [];
+var leaderboardSeen = new Set();
+var leaderboardCursor = null;
+var leaderboardRequest = 0;
+var leaderboardBusy = false;
+var leaderboardMore = false;
+var leaderboardPageSize = 20;
 var leaderboardSort = "overall";
 var leaderboardSortLabels = {overall:"Overall",wins:"Crowns",tournament_wins:"Tournament wins",humiliation_losses:"Humiliation",bt_wins:"Blood Tributes"};
 function getLeaderboardOverall(row){
   return (Number(row.wins) || 0) + (Number(row.bt_wins) || 0) + 20 * (Number(row.tournament_wins) || 0);
 }
-function renderLeaderboardRows(){
+function appendLeaderboardRows(rows){
   var list = $("lbList");
-  if(!leaderboardData.length) return;
-  var data = leaderboardData.map(function(row,index){ return {row:row,index:index}; });
-  data.sort(function(a,b){
-    var aScore = leaderboardSort === "overall" ? getLeaderboardOverall(a.row) : (Number(a.row[leaderboardSort]) || 0);
-    var bScore = leaderboardSort === "overall" ? getLeaderboardOverall(b.row) : (Number(b.row[leaderboardSort]) || 0);
-    return bScore - aScore || a.index - b.index;
-  });
-  list.innerHTML = "";
-  for(var i=0;i<data.length;i++){
-    var row = data[i].row;
+  var fragment = document.createDocumentFragment();
+  for(var row of rows){
+    if(leaderboardSeen.has(row.user_id)) continue;
+    leaderboardSeen.add(row.user_id);
     var isMe = currentUser && row.user_id === currentUser.id;
     var div = document.createElement("div");
     div.className = "lb-row" + (isMe ? " me" : "");
-    var rankNum = i+1;
+    var rankNum = leaderboardSeen.size;
     var rankClass = "";
     if(rankNum === 1) rankClass = " gold";
     else if(rankNum === 2) rankClass = " silver";
@@ -641,8 +640,9 @@ function renderLeaderboardRows(){
     div.querySelector(".lb-stat.humil").textContent = fmtStat(row.humiliation_losses || 0);
     div.querySelector(".lb-stat.bt").textContent = fmtStat(row.bt_wins || 0);
     div.querySelector(".lb-stat.overall").textContent = fmtStat(getLeaderboardOverall(row));
-    list.appendChild(div);
+    fragment.appendChild(div);
   }
+  list.appendChild(fragment);
 }
 function closeLeaderboardSort(){
   $("lbSortMenu").hidden = true;
@@ -665,30 +665,67 @@ $("lbSortMenu").addEventListener("click",function(e){
     b.setAttribute("aria-pressed", String(b === btn));
   });
   closeLeaderboardSort();
-  renderLeaderboardRows();
+  loadLeaderboard();
 });
 document.addEventListener("click",function(e){
   if(!e.target.closest(".lb-sort-wrap")) closeLeaderboardSort();
 });
-async function loadLeaderboard(){
-  var list = $("lbList");
-  if(!sb){ list.innerHTML = '<div class="lb-empty">Supabase is unavailable.</div>'; return; }
-  list.innerHTML = '<div class="lb-loading">Loading leaderboard…</div>';
-  var res = await sb.rpc("kf_get_leaderboard_bt", {p_limit: 100});
-  if(res.error){
-    console.error("Leaderboard error:", res);
-    list.innerHTML = '<div class="lb-empty">Could not load leaderboard.<small style="color:#ef8b83;word-break:break-word;display:block;margin-top:8px"></small></div>';
-    list.querySelector("small").textContent = res.error.message || JSON.stringify(res.error);
-    return;
-  }
-  var data = res.data || [];
-  leaderboardData = data;
-  if(!data.length){
-    list.innerHTML = '<div class="lb-empty">No players yet. Play a match to appear here!</div>';
-    return;
-  }
-  renderLeaderboardRows();
+var leaderboardNext = document.createElement("button");
+leaderboardNext.type = "button";
+leaderboardNext.className = "lb-refresh";
+leaderboardNext.hidden = true;
+$("lbList").after(leaderboardNext);
+
+function loadLeaderboard(){
+  ++leaderboardRequest;
+  leaderboardSeen.clear();
+  leaderboardCursor = null;
+  leaderboardMore = true;
+  leaderboardBusy = false;
+  $("lbList").innerHTML = '<div class="lb-loading">Loading leaderboard…</div>';
+  $("lbList").scrollTop = 0;
+  return loadLeaderboardPage();
 }
+async function loadLeaderboardPage(){
+  if(leaderboardBusy || !leaderboardMore) return;
+  var request = leaderboardRequest;
+  var cursor = leaderboardCursor;
+  var list = $("lbList");
+  leaderboardBusy = true;
+  leaderboardNext.hidden = true;
+  try{
+    if(!sb) throw Error("Supabase unavailable");
+    var res = await sb.rpc("kf_leaderboard_page",{
+      p_sort:leaderboardSort,
+      p_after_score:cursor ? cursor.sort_score : null,
+      p_after_id:cursor ? cursor.user_id : null
+    });
+    if(request !== leaderboardRequest) return;
+    if(res.error) throw res.error;
+    var data = res.data || [];
+    var page = data.slice(0,leaderboardPageSize);
+    if(!cursor) list.replaceChildren();
+    appendLeaderboardRows(page);
+    leaderboardMore = data.length > leaderboardPageSize;
+    if(page.length) leaderboardCursor = page[page.length-1];
+    if(!leaderboardSeen.size) list.innerHTML = '<div class="lb-empty">No players yet.</div>';
+    leaderboardNext.textContent = "Load more players";
+    leaderboardNext.hidden = !leaderboardMore;
+  }catch(error){
+    if(request !== leaderboardRequest) return;
+    if(!cursor) list.innerHTML = '<div class="lb-empty">Could not load leaderboard.</div>';
+    leaderboardNext.textContent = "Retry loading players";
+    leaderboardNext.hidden = false;
+    console.warn("Leaderboard request failed:",error);
+  }finally{
+    if(request === leaderboardRequest) leaderboardBusy = false;
+  }
+}
+$("lbList").addEventListener("scroll",function(){
+  if(this.scrollTop > 0 && this.scrollTop + this.clientHeight >= this.scrollHeight - 64)
+    loadLeaderboardPage();
+},{passive:true});
+leaderboardNext.onclick = loadLeaderboardPage;
 $("lbRefresh").onclick = loadLeaderboard;
 
 /* ============ TOURNAMENT STATE ============ */
@@ -936,17 +973,6 @@ function startTournTick(){
   tournTickTimer = setInterval(function(){
     updateTournButton();
     if($("tournDialog").open && tournCurrent) updateTournBigTimer();
-    if(tournCurrent && tournCurrent.status === "registration"){
-      var now = Date.now();
-      var start = new Date(tournCurrent.scheduled_at).getTime();
-      if(now >= start && !tournCurrent._startAttempted){
-        tournCurrent._startAttempted = true;
-        sb.rpc("kf_start_tournament", {p_tournament_id: tournCurrent.id}).then(function(r){
-          if(r.error) console.warn("Start error:", r.error);
-          else setTimeout(refreshTournLive, 800);
-        });
-      }
-    }
     if($("tournDialog").open &&
        (!window._lastTournRefresh || Date.now() - window._lastTournRefresh > 15000)){
       window._lastTournRefresh = Date.now();
