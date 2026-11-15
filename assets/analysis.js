@@ -6,6 +6,10 @@ var analysisIndex = 0;
 var analysisRunning = false;
 var analysisRunId = 0;
 var adminReviewedPlayer = null;
+var kfCriticalTrial = new URLSearchParams(window.location.search).get("criticalTest");
+var kfCriticalTrialActive = kfCriticalTrial === "1200" || kfCriticalTrial === "2300";
+var kfCriticalMoveTime = kfCriticalTrial === "1200" ? 1200 : 2300;
+
 var KF_ANALYSIS_CACHE_KEY = "kf_analysis_local_cache_v1";
 var KF_ANALYSIS_CACHE_VERSION = "sf19-lite-threepass-restored-20261112";
 var KF_ANALYSIS_CACHE_MAX = 12;
@@ -239,7 +243,7 @@ function openAnalysis(){
   // Reuse completed analysis of this exact move sequence from this device.
   // Report reviews deliberately bypass the cache.
   var cacheId=adminReviewedPlayer?null:kfAnalysisCacheId(game);
-  var cached=kfAnalysisReadCache(cacheId);
+  var cached=kfCriticalTrialActive?null:kfAnalysisReadCache(cacheId);
   if(cached&&thisRun===analysisRunId){
     analysisMoves=cached.moves;
     analysisPositions=cached.positions;
@@ -379,13 +383,13 @@ async function runFullAnalysis(runId){
       var key=positionKey(positions[at]);
       var task=criticalCache.get(key);
       if(!task){
-        task=analyzeWithEngine(positions[at],2300,engineIndex);
+        task=analyzeWithEngine(positions[at],kfCriticalMoveTime,engineIndex);
         criticalCache.set(key,task);
       }
       var checked=await task;
       if((!checked||checked.score==null)&&engineIndex===0&&criticalCache.get(key)===task){
         criticalCache.delete(key);
-        checked=await analyzeWithEngine(positions[at],2300,0);
+        checked=await analyzeWithEngine(positions[at],kfCriticalMoveTime,0);
       }
       if(checked&&checked.score!=null&&
          posAnalyses[at]&&checked.depth>=posAnalyses[at].depth)
@@ -611,12 +615,14 @@ async function runFullAnalysis(runId){
   });
   closeAnalysisAuxEngines();
   kfSetAnalysisProgress(runId,100);
+  if(kfCriticalTrialActive)
+    $("anProgressPercent").textContent="100% · "+(totalElapsed/1000).toFixed(1)+"s · "+kfCriticalMoveTime+"ms";
   analysisMoves = moves;
   analysisPositions = positions;
   analysisRunning = false;
   var unrated = moves.filter(function(move){ return move.quality === "unrated"; }).length;
   // Only the percentage is shown; detailed diagnostics remain in the console.
-  if(!adminReviewedPlayer && unrated===0)
+  if(!kfCriticalTrialActive && !adminReviewedPlayer && unrated===0)
     kfAnalysisWriteCache(kfAnalysisCacheId(sourceGame),moves,positions,"100%");
   renderMoveList();
   renderSummary();
