@@ -312,11 +312,13 @@ function fmtClock(sec){
   sec = Math.max(0, Math.floor(sec));
   return String(Math.floor(sec/60)).padStart(2,"0") + ":" + String(sec%60).padStart(2,"0");
 }
-/* TEMP ALPHA TEST: show clock tenths without altering authoritative timing. */
+// Display-only: show MM:SS at 60 seconds or more, then MM:SS.tenths.
+// The authoritative clock and its update cadence are unchanged.
 function fmtClockTenths(sec){
-  var tenths = Math.max(0,Math.floor((Number(sec)||0)*10+1e-7));
-  return String(Math.floor(tenths/600)).padStart(2,"0")+":"+
-    String(Math.floor((tenths%600)/10)).padStart(2,"0")+"."+(tenths%10);
+  var seconds = Math.max(0,Number(sec)||0);
+  if(seconds >= 60) return fmtClock(seconds);
+  var tenths = Math.floor(seconds*10+1e-7);
+  return "00:"+String(Math.floor(tenths/10)).padStart(2,"0")+"."+(tenths%10);
 }
 function fmtCountdown(ms){
   if(ms < 0) ms = 0;
