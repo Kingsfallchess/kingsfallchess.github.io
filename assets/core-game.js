@@ -288,6 +288,8 @@ var pendingQueueIsRoulette = false;
 var pendingQueueIsBloodblade = false;
 var currentGameIsRoulette = false;
 var rouletteOpeningAnimating = false;
+// Retain the latest authoritative Realtime row without interrupting Roulette animations.
+var kfRouletteDeferredGameRow = null;
 var rouletteServerClockOffsetMs = 0;
 function defaultAvatar(){
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="50" fill="#172337"/><circle cx="50" cy="36" r="19" fill="#9AA9BE"/><path d="M16 92c3-23 16-34 34-34s31 11 34 34" fill="#9AA9BE"/></svg>';
@@ -1765,6 +1767,7 @@ async function loadOnlineGame(id, skipIntro){
     return;
   }
   var data = res.data;
+  kfRouletteDeferredGameRow = null;
   if(currentGameIsRoulette) rouletteOpeningAnimating = true;
   await stopQueuePoll();
   // مراسم شروع فقط برای ورود اولیه به بازی اجرا می‌شود؛ بازیابی اتصال نباید آن را تکرار کند.
@@ -1887,19 +1890,40 @@ if(currentGameIsRoulette){
   }
 
   // No finish/ready RPC: the server's precomputed clock_started_at is final.
-
-  // Confirm the exact final position and complete PGN against Supabase.
-  var latestRes = await sb.from("kf_games")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if(latestRes.error){
-    rouletteOpeningAnimating = false;
-    throw latestRes.error;
+  // A full, newer Realtime snapshot can make the final REST fetch redundant.
+  // The plain opening snapshot is NOT sufficient: a player may already have
+  // moved when the animation ends. Keep the server fetch as a safe fallback.
+  var rouletteLatest = kfRouletteDeferredGameRow;
+  kfRouletteDeferredGameRow = null;
+  var rouletteRealtimeBoard = null;
+  var rouletteOpeningMoveAt = Date.parse(openingData.last_move_at || openingData.clock_started_at);
+  if(rouletteLatest && rouletteLatest.id === id &&
+     (kfGamePostgresConnected || kfGameBroadcastConnected) &&
+     rouletteLatest.clock_started_at === openingData.clock_started_at &&
+     typeof rouletteLatest.pgn === "string" &&
+     typeof rouletteLatest.fen === "string" &&
+     rouletteLatest.pgn.indexOf(openingData.pgn) === 0 &&
+     Date.parse(rouletteLatest.last_move_at) > rouletteOpeningMoveAt){
+    try{
+      var freshBoard = new Chess();
+      if(freshBoard.load_pgn(rouletteLatest.pgn) &&
+         freshBoard.fen() === rouletteLatest.fen)
+        rouletteRealtimeBoard = freshBoard;
+    }catch(ignoreRealtimePosition){}
   }
-
-  data = latestRes.data;
+  if(rouletteRealtimeBoard){
+    data = rouletteLatest;
+  }else{
+    var latestRes = await sb.from("kf_games")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if(latestRes.error){
+      rouletteOpeningAnimating = false;
+      throw latestRes.error;
+    }
+    data = latestRes.data;
+  }
   onlineGame = data;
   if(!game) game = new Chess();
   var openingLoaded = game.load_pgn(data.pgn);
@@ -1941,9 +1965,17 @@ function kfDrainDeferredGameRow(){
 }
 function applyOnlineGame(row){
   if(!row || row.id !== onlineGameId) return;
-  // The database already contains the complete opening; keep its snapshot
-  // from replacing the board while the six moves are being animated locally.
-  if(rouletteOpeningAnimating) return;
+  // The opening animation must not be interrupted by incoming game updates.
+  // Cache the newest full server row for reconciliation at animation end.
+  if(rouletteOpeningAnimating){
+    if(row.fen && typeof row.pgn === "string" && row.clock_started_at){
+      var oldRow = kfRouletteDeferredGameRow;
+      var oldAt = oldRow && oldRow.updated_at ? Date.parse(oldRow.updated_at) : 0;
+      var newAt = row.updated_at ? Date.parse(row.updated_at) : 0;
+      if(!oldRow || newAt >= oldAt) kfRouletteDeferredGameRow = row;
+    }
+    return;
+  }
   // Never replace an in-flight optimistic board. Process the newest update
   // as soon as the RPC ends instead of waiting for the next polling cycle.
   if(submittingMove || kfPendingClockMove){
