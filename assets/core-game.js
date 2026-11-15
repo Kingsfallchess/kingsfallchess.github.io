@@ -312,11 +312,11 @@ function fmtClock(sec){
   sec = Math.max(0, Math.floor(sec));
   return String(Math.floor(sec/60)).padStart(2,"0") + ":" + String(sec%60).padStart(2,"0");
 }
-// Display-only: show MM:SS at 60 seconds or more, then MM:SS.tenths.
+// Display-only: show MM:SS at 20 seconds or more, then MM:SS.tenths.
 // The authoritative clock and its update cadence are unchanged.
 function fmtClockTenths(sec){
   var seconds = Math.max(0,Number(sec)||0);
-  if(seconds >= 60) return fmtClock(seconds);
+  if(seconds >= 20) return fmtClock(seconds);
   var tenths = Math.floor(seconds*10+1e-7);
   return "00:"+String(Math.floor(tenths/10)).padStart(2,"0")+"."+(tenths%10);
 }
