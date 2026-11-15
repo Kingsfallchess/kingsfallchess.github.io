@@ -8,10 +8,10 @@ var analysisRunId = 0;
 var adminReviewedPlayer = null;
 var kfCriticalTrial = new URLSearchParams(window.location.search).get("criticalTest");
 var kfCriticalTrialActive = kfCriticalTrial === "1200" || kfCriticalTrial === "2300";
-var kfCriticalMoveTime = kfCriticalTrial === "1200" ? 1200 : 2300;
+var kfCriticalMoveTime = kfCriticalTrial === "2300" ? 2300 : 1200;
 
 var KF_ANALYSIS_CACHE_KEY = "kf_analysis_local_cache_v1";
-var KF_ANALYSIS_CACHE_VERSION = "sf19-lite-threepass-restored-20261112";
+var KF_ANALYSIS_CACHE_VERSION = "sf19-lite-threepass-critical1200-20261116";
 var KF_ANALYSIS_CACHE_MAX = 12;
 var KF_ANALYSIS_CACHE_TTL = 21 * 24 * 60 * 60 * 1000;
 // This cache is on this browser only. No analysis results are sent to Supabase.
