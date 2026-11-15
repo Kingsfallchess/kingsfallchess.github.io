@@ -112,7 +112,9 @@ function kfReceivePostgresGameRow(row){
   applyOnlineGame(row);
 }
 function kfStartGameBroadcast(gameId,row){
-  kfStopGameBroadcast();
+  // The game-entry paths already closed the previous channel. Avoid a
+  // redundant stop/polling refresh when there is nothing left to remove.
+  if(kfGameBroadcastChannel) kfStopGameBroadcast();
   if(!sb||!gameId||!row||!currentUser||
      (row.white_id!==currentUser.id&&row.black_id!==currentUser.id))return;
   kfGameBroadcastId=gameId;
