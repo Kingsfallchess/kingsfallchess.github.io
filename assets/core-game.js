@@ -1463,6 +1463,15 @@ async function startTournamentGame(match){
     if(!gameRes.error && gameRes.data) tournActiveMatch = gameRes.data;
 
     var joined = await joinTournamentGame(gameId);
+    // A match can end between the bracket read and the game read.
+    // Never re-enter or retry an already completed tournament game.
+    if(joined === "finished"){
+      shouldRetry = false;
+      tournStartBlockedMatchId = match.id;
+      tournActiveMatch = null;
+      await loadTournamentState(false, true);
+      return;
+    }
     if(!joined){
       tournActiveMatch = null;
       return;
@@ -1487,6 +1496,13 @@ async function joinTournamentGame(gameId, skipIntro){
     return false;
   }
   var data = res.data;
+  // A delayed entrant must not open a game that the server already ended.
+  // Keep the entire existing join path for games that are still active.
+  if(data.status === "completed" || data.status === "cancelled"){
+    tournActiveMatch = null;
+    say("Tournament game already finished.", {silentToast:true});
+    return "finished";
+  }
   if($("tournDialog").open) $("tournDialog").close();
   kfStopGameBroadcast(); if(gameChannel && sb){ sb.removeChannel(gameChannel); gameChannel = null; }
   onlineGameId = gameId;
@@ -1772,6 +1788,26 @@ async function loadOnlineGame(id, skipIntro){
   kfRouletteDeferredGameRow = null;
   if(currentGameIsRoulette) rouletteOpeningAnimating = true;
   await stopQueuePoll();
+  // Skip the VS screen and game room when the initial authoritative read
+  // says the game ended before this player arrived.
+  if(data.status === "completed" || data.status === "cancelled"){
+    rouletteOpeningAnimating = false;
+    // Do not interfere with a different game that is still in progress.
+    if(!onlineGameId || onlineGameId === id || !onlineGame || onlineGame.status !== "active"){
+      stopGamePolling();
+      onlineGameId = null; onlineGame = null;
+      kfStopGameBroadcast();
+      if(gameChannel && sb){sb.removeChannel(gameChannel);gameChannel=null;}
+      hideCelebration();
+      exitFullscreenGame();
+      document.body.classList.remove("online", "computer-mode", "game-focus");
+      $("new").disabled = false;
+      resetQueueUI();
+      setTimeout(loadHistory, 300);
+    }
+    say("Game already finished. Back to Home.", {silentToast:true});
+    return;
+  }
   // مراسم شروع فقط برای ورود اولیه به بازی اجرا می‌شود؛ بازیابی اتصال نباید آن را تکرار کند.
   if(!skipIntro){
     var myIsWhite = (data.white_id === currentUser.id);
