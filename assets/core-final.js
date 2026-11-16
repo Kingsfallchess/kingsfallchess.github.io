@@ -246,7 +246,9 @@ kfSetupCountryPicker("profileFlagEnabled","profileCountryWrap","profileCountry")
 function openAuth(m){
   mode = m;
   $("authForm").reset();
-  $("authMessage").textContent = "";
+  $("authMessage").textContent = currentUser && currentUser.is_anonymous
+    ? "Signing in or creating a new account will replace this guest profile. Guest results may not transfer."
+    : "";
   $("authMessage").classList.remove("error");
   var up = m === "signup";
   var reset = m === "reset";
@@ -426,19 +428,23 @@ $("accountGateRetry").addEventListener("click",async function(){
 });
 $("accountGateSignOut").addEventListener("click",function(){$("signOut").click();});
 function applyAuthUser(user){
+  var isGuest=!!(user && user.is_anonymous);
   var username = user && user.user_metadata ? user.user_metadata.username : null;
   var avatarUrl = user && user.user_metadata ? user.user_metadata.avatar_url : null;
-  $("userBadge").textContent = username || (user ? user.email : "");
+  $("userBadge").textContent = username || (isGuest ? "Guest" : (user ? (user.email || "Player") : ""));
   var flagCode=user&&user.user_metadata&&user.user_metadata.country_code;
   var flag=$("profileFlagBadge");
   flag.textContent=kfCountryCodes.includes(flagCode)?kfFlagEmoji(flagCode):"";
   flag.style.display=user&&flag.textContent?"inline-block":"none";
-  $("userBadge").title = username ? ("Signed in as " + username) : (user ? user.email : "");
+  $("userBadge").title = isGuest ? "Temporary guest · stored on this device" :
+    username ? ("Signed in as " + username) : (user ? (user.email || "Player") : "");
   $("avatarThumb").src = avatarUrl || defaultAvatar();
   $("avatarThumb").style.display = user ? "block" : "none";
-  $("signIn").hidden = !!user;
-  $("signUp").hidden = !!user;
+  // Guests can still choose to create a permanent account or sign in.
+  $("signIn").hidden = !!user && !isGuest;
+  $("signUp").hidden = !!user && !isGuest;
   $("signOut").hidden = !user;
+  $("signOut").textContent = isGuest ? "Exit Guest" : "Sign Out";
   configureAdminAccess(user);
   loadFeatureFlags();
   // Ban lookup is deliberately detached from the authentication/UI path.
@@ -456,6 +462,40 @@ async function updateAuth(userOverride){
     user = session ? session.user : null;
   }
   applyAuthUser(user);
+}
+/* A guest has a real, server-verified anonymous Supabase session.
+   It is created on first Play/Register, never on a casual page visit.
+   The session persists on this device and is re-used after reload. */
+var kfGuestSignInPending=null;
+async function kfEnsurePlaySession(){
+  if(!sb)throw new Error("Supabase is unavailable.");
+  var existing=await withTimeout(sb.auth.getSession(),9000);
+  if(existing.error)throw existing.error;
+  if(existing.data&&existing.data.session&&existing.data.session.user){
+    currentUser=existing.data.session.user;
+    return existing.data.session;
+  }
+  if(kfGuestSignInPending)return kfGuestSignInPending;
+  kfGuestSignInPending=(async function(){
+    var guestName="Guest-"+crypto.randomUUID().replace(/-/g,"").slice(0,6).toUpperCase();
+    var result=await withTimeout(sb.auth.signInAnonymously({
+      options:{data:{username:guestName}}
+    }),15000);
+    if(result.error){
+      var msg=String(result.error.message||"");
+      if(/anonymous.*(disabled|not enabled)|signups.*disabled|anonymous.*not allowed/i.test(msg)){
+        throw new Error("Guest access is disabled in Supabase Auth. Enable Anonymous Sign-Ins in Authentication → Providers.");
+      }
+      throw result.error;
+    }
+    if(!result.data||!result.data.session||!result.data.session.user)
+      throw new Error("Could not create a guest session.");
+    currentUser=result.data.session.user;
+    applyAuthUser(currentUser);
+    return result.data.session;
+  })();
+  try{return await kfGuestSignInPending;}
+  finally{kfGuestSignInPending=null;}
 }
   /* ===== PROFILE ===== */
 $("avatarThumb").onclick = async function(){
@@ -572,6 +612,8 @@ $("profileForm").addEventListener("submit", async function(e){
 /* ===== SIGN OUT (FIX: reset autoJoinChecked) ===== */
 $("signOut").onclick = async function(){
   if(!sb) return;
+  if(currentUser && currentUser.is_anonymous &&
+      !confirm("Exit Guest? This temporary account cannot be recovered after signing out."))return;
   var res = await sb.auth.signOut();
   if(res.error){
     say(res.error.message, {error: true});
