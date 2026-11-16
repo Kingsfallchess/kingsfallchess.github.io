@@ -1734,7 +1734,7 @@ function showStreakReviews(){$("adminClockReportsSection").hidden=true;$("adminS
  ["adminOverviewView","adminRejectedMovesSection","adminSuspiciousPlayersSection","adminPlayerReportsSection","adminUserManagementSection"].forEach(function(id){$(id).hidden=true;});
  $("adminStreakReviewsSection").hidden=false;
  $("adminPageTitle").textContent="🔎 Anti-Cheat Cases";
- $("adminPageSubtitle").textContent="Three consecutive wins · Admin-only reviews";
+ $("adminPageSubtitle").textContent="Five consecutive wins · Admin-only reviews";
  $("adminBackToOverview").hidden=false;
  loadAdminStreakReviews();
  window.scrollTo({top:0,behavior:"smooth"});
@@ -1782,7 +1782,7 @@ async function loadAdminStreakReviews(){
        '%, ACPL '+g.average_centipawn_loss+', large errors '+g.large_errors;
    }).join(" | "):"";
    return '<article class="admin-report-row"><strong>'+adminEscape(r.player_username||"Player")+
-    ' · '+fmtStat(r.consecutive_wins||3)+' straight wins</strong>'+
+    ' · '+fmtStat(r.consecutive_wins||games.length)+' straight wins</strong>'+
     '<small>Player ID: <code>'+adminEscape(r.player_id)+'</code></small>'+
     '<small>Created: '+adminEscape(r.created_at?new Date(r.created_at).toLocaleString():"—")+
     ' · '+adminEscape(r.review_status||"pending")+'</small>'+
@@ -1796,7 +1796,7 @@ async function loadAdminStreakReviews(){
     (r.review_status==="pending"?"Mark reviewed":"Reopen")+'</button>'+
     '<button type="button" class="btn" data-streak-id="'+adminEscape(String(r.id))+
     '" data-streak-delete="1" style="color:#ef8b83">Delete</button></div></article>';
-  }).join(""):'<div class="admin-empty">No three-win streaks queued yet.</div>';
+  }).join(""):'<div class="admin-empty">No five-win streaks queued yet.</div>';
  }catch(e){
   target.innerHTML='<div class="admin-empty">Unable to load anti-cheat cases: '+adminEscape(e.message||e)+'</div>';
  }
