@@ -5,7 +5,7 @@
   try { saved = localStorage.getItem("kf_theme"); } catch(e){}
   if(saved === "ocean") document.body.classList.add("theme-ocean");
 })();
-var _themeRotation = 45;
+var _themeRotation = 0;
 $("themeToggle").onclick = function(){
   document.body.classList.toggle("theme-ocean");
   var isOcean = document.body.classList.contains("theme-ocean");
