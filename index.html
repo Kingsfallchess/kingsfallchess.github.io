@@ -1933,8 +1933,17 @@ body.kf-chat-open #kfChatLauncher{opacity:0;pointer-events:none}
 
 
 
+<div class="admin-stats"><button id="adminMonitoringOpen" type="button" class="admin-stat" style="text-align:left;color:inherit;cursor:pointer"><span>📊 Server Monitoring</span><strong>›</strong></button></div>
 <div class="admin-footnote">Administrative operations are verified by Supabase against the authenticated owner account.</div>
 </div>
+<section class="admin-section" id="adminMonitoringSection" hidden>
+ <div class="admin-section-head"><div><h2>📊 Server Monitoring</h2><p>Owner-only · Database snapshot · No game-path tracking</p></div><button type="button" id="adminMonitoringRefresh" class="btn">↻ Refresh metrics</button></div>
+ <p id="adminMonitoringStatus" class="admin-footnote" role="status">Open monitoring to load a private snapshot.</p>
+ <div id="adminMonitoringMetrics" class="admin-stats" aria-live="polite"></div>
+ <div class="admin-section-head"><div><h2>♟ Move RPC execution</h2><p>Database time only, not network or client latency · Aggregate since statistics reset</p></div></div>
+ <div id="adminMonitoringMove" class="admin-stats"></div>
+ <div class="admin-footnote">Metrics are collected only when you open or manually refresh this page. No writes, triggers or extra calls are added to live gameplay. A cumulative maximum is not a typical move latency.</div>
+</section>
 <section class="admin-section" id="adminSecurityHubView" hidden>
 <div class="admin-section-head"><div><h2>🛡️ Security Reports</h2><p>All reports in one place · An alert is not proof of cheating</p></div></div>
 <div class="admin-stats" id="adminSecurityFolders">
