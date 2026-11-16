@@ -1641,6 +1641,59 @@ function renderAdminUsers(){
 function renderAdminFeatures(rows){
  $("adminFeatures").innerHTML=rows.filter(function(f){return f.feature_key!=="rematch";}).map(function(f){return '<div class="admin-feature"><div><strong>'+adminEscape(f.label)+'</strong><small>'+adminEscape(f.description)+'</small></div><input class="admin-toggle" type="checkbox" data-feature="'+adminEscape(f.feature_key)+'" '+(f.enabled?'checked':'')+' aria-label="Toggle '+adminEscape(f.label)+'"></div>';}).join("")||'<div class="admin-empty">No features configured.</div>';
 }
+/* Owner-only read-only monitoring. Manual refresh prevents background database load. */
+var kfMonitorBusy=false;
+function kfMonitorValue(v,suffix){
+ if(v===null||v===undefined||!isFinite(Number(v)))return "—";
+ return Number(v).toLocaleString("en-US",{maximumFractionDigits:2})+(suffix||"");
+}
+function kfMonitorCard(label,value,detail){
+ return '<div class="admin-stat" style="cursor:default"><span>'+adminEscape(label)+'</span><strong>'+adminEscape(value)+'</strong>'+(detail?'<small style="display:block;color:var(--muted);font-size:11px;margin-top:6px">'+adminEscape(detail)+'</small>':'')+'</div>';
+}
+async function kfLoadMonitoring(){
+ if(kfMonitorBusy||!sb||!currentUser||currentUser.id!==adminOwnerId||$("adminMonitoringSection").hidden)return;
+ kfMonitorBusy=true;
+ var button=$("adminMonitoringRefresh"), status=$("adminMonitoringStatus");
+ button.disabled=true;status.textContent="Reading database snapshot…";
+ try{
+  var result=await sb.rpc("kf_admin_monitor_snapshot");
+  if(result.error)throw result.error;
+  var d=result.data||{};
+  $("adminMonitoringMetrics").innerHTML=[
+   kfMonitorCard("Active games",kfMonitorValue(d.active_games),"Games currently marked active"),
+   kfMonitorCard("Games created · last hour",kfMonitorValue(d.games_created_last_hour)),
+   kfMonitorCard("Database connections",kfMonitorValue(d.connections_total)+" / "+kfMonitorValue(d.db_max_connections),"Active queries: "+kfMonitorValue(d.connections_active)),
+   kfMonitorCard("Waiting on locks",kfMonitorValue(d.waiting_locks)),
+   kfMonitorCard("Database size",kfMonitorValue(d.db_size_mb," MB")),
+   kfMonitorCard("Database cache hit",kfMonitorValue(d.cache_hit_percent,"%"),"Cumulative PostgreSQL statistic")
+  ].join("");
+  $("adminMonitoringMove").innerHTML=[
+   kfMonitorCard("Tracked move RPC calls",kfMonitorValue(d.move_calls_since_reset),"Cumulative PostgREST calls"),
+   kfMonitorCard("Average database time",kfMonitorValue(d.move_mean_db_ms," ms"),"Excludes network"),
+   kfMonitorCard("Largest recorded database time",kfMonitorValue(d.move_max_db_ms," ms"),"Historical maximum; may be an outlier")
+  ].join("");
+  var at=d.sampled_at?new Date(d.sampled_at).toLocaleString():"unknown time";
+  status.textContent="Snapshot updated: "+at+" · Refresh manually for new figures.";
+ }catch(error){
+  status.textContent="Monitoring unavailable: "+(error.message||String(error));
+  console.error("[Kingsfall monitoring] Read-only snapshot failed",error);
+ }finally{kfMonitorBusy=false;button.disabled=false;}
+}
+function showAdminMonitoring(){
+ if(!currentUser||currentUser.id!==adminOwnerId)return;
+ ["adminOverviewView","adminSecurityHubView","adminFeaturesSection","adminClockReportsSection",
+  "adminMoveAuditSection","adminRejectedMovesSection","adminStreakReviewsSection",
+  "adminSuspiciousPlayersSection","adminPlayerReportsSection","adminUserManagementSection"].forEach(function(id){$(id).hidden=true;});
+ $("adminMonitoringSection").hidden=false;
+ adminSecurityFolderOpen=false;
+ $("adminPageTitle").textContent="📊 Server Monitoring";
+ $("adminPageSubtitle").textContent="Private database health and move processing metrics";
+ $("adminBackToOverview").hidden=false;
+ kfLoadMonitoring();
+ window.scrollTo({top:0,behavior:"smooth"});
+}
+$("adminMonitoringOpen").addEventListener("click",showAdminMonitoring);
+$("adminMonitoringRefresh").addEventListener("click",kfLoadMonitoring);
 $("navAdmin").onclick=function(){if(currentUser&&currentUser.id===adminOwnerId)showPage("admin");};
 $("adminRefresh").onclick=loadAdminPanel;$("adminUserSearch").addEventListener("input",renderAdminUsers);
 
@@ -1708,7 +1761,7 @@ function showClockReports(){
  window.scrollTo({top:0,behavior:"smooth"});
 }
 var adminSecurityFolderOpen=false;
-function showSecurityHub(){$("adminClockReportsSection").hidden=true;
+function showSecurityHub(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  ["adminOverviewView","adminFeaturesSection","adminMoveAuditSection","adminStreakReviewsSection","adminSuspiciousPlayersSection","adminPlayerReportsSection","adminUserManagementSection"].forEach(function(id){$(id).hidden=true;});
  $("adminSecurityHubView").hidden=false;
@@ -1719,7 +1772,7 @@ function showSecurityHub(){$("adminClockReportsSection").hidden=true;
  kfRefreshVisibleAdminSecurity();
  window.scrollTo({top:0,behavior:"smooth"});
 }
-function showShadowMoveAudit(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;
+function showShadowMoveAudit(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  ["adminOverviewView","adminRejectedMovesSection","adminStreakReviewsSection","adminSuspiciousPlayersSection","adminPlayerReportsSection","adminUserManagementSection"].forEach(function(id){$(id).hidden=true;});
  $("adminMoveAuditSection").hidden=false;
@@ -1729,7 +1782,7 @@ function showShadowMoveAudit(){$("adminClockReportsSection").hidden=true;$("admi
  loadAdminMoveAuditAlerts();
  window.scrollTo({top:0,behavior:"smooth"});
 }
-function showStreakReviews(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;$("adminMoveAuditSection").hidden=true;
+function showStreakReviews(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;$("adminMoveAuditSection").hidden=true;
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  ["adminOverviewView","adminRejectedMovesSection","adminSuspiciousPlayersSection","adminPlayerReportsSection","adminUserManagementSection"].forEach(function(id){$(id).hidden=true;});
  $("adminStreakReviewsSection").hidden=false;
@@ -1865,13 +1918,13 @@ $("adminStreakReviewsList").addEventListener("click",async function(event){
   openAnalysis();
  }catch(e){say("Could not analyze case: "+(e.message||e),{error:true});}
 });
-function showPlayerReports(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=true;
+function showPlayerReports(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=true;
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  $("adminOverviewView").hidden=true;$("adminUserManagementSection").hidden=true;$("adminPlayerReportsSection").hidden=false;
  $("adminPageTitle").textContent="⚑ Player Reports";$("adminPageSubtitle").textContent="Player submissions for admin review";$("adminBackToOverview").hidden=false;
  loadAdminPlayerReports();window.scrollTo({top:0,behavior:"smooth"});
 }
-function showSuspiciousPlayers(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;
+function showSuspiciousPlayers(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=true;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  $("adminOverviewView").hidden=true;$("adminUserManagementSection").hidden=true;$("adminPlayerReportsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=false;
  $("adminPageTitle").textContent="⚠ Suspicious Players";$("adminPageSubtitle").textContent="Private watchlist · Admin only";$("adminBackToOverview").hidden=false;loadAdminSuspiciousPlayers();window.scrollTo({top:0,behavior:"smooth"});
@@ -1893,9 +1946,9 @@ $("adminSuspiciousForm").addEventListener("submit",async function(e){
  catch(err){say("Could not save suspicious player: "+(err.message||err),{error:true});}
  finally{button.disabled=false;}
 });
-function showRegisteredUsers(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=false;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=true;if(!currentUser||currentUser.id!==adminOwnerId)return;$("adminPlayerReportsSection").hidden=true;$("adminOverviewView").hidden=true;$("adminUserManagementSection").hidden=false;$("adminPageTitle").textContent="👥 User Management";$("adminPageSubtitle").textContent="Manage Kingsfall accounts";$("adminBackToOverview").hidden=false;$("adminUserSearch").value="";renderAdminUsers();window.scrollTo({top:0,behavior:"smooth"});}
-function showAdminOverview(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=false;$("adminFeaturesSection").hidden=true;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=true;$("adminPlayerReportsSection").hidden=true;$("adminUserManagementSection").hidden=true;$("adminOverviewView").hidden=false;$("adminPageTitle").textContent="🛡️ Admin Panel";$("adminPageSubtitle").textContent="Private administration · Owner access only";$("adminBackToOverview").hidden=true;window.scrollTo({top:0,behavior:"smooth"});}
-function showAdminFeatureManagement(){$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=false;
+function showRegisteredUsers(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=false;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=true;if(!currentUser||currentUser.id!==adminOwnerId)return;$("adminPlayerReportsSection").hidden=true;$("adminOverviewView").hidden=true;$("adminUserManagementSection").hidden=false;$("adminPageTitle").textContent="👥 User Management";$("adminPageSubtitle").textContent="Manage Kingsfall accounts";$("adminBackToOverview").hidden=false;$("adminUserSearch").value="";renderAdminUsers();window.scrollTo({top:0,behavior:"smooth"});}
+function showAdminOverview(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=false;$("adminFeaturesSection").hidden=true;$("adminMoveAuditSection").hidden=true;$("adminRejectedMovesSection").hidden=true;$("adminStreakReviewsSection").hidden=true;$("adminSuspiciousPlayersSection").hidden=true;$("adminPlayerReportsSection").hidden=true;$("adminUserManagementSection").hidden=true;$("adminOverviewView").hidden=false;$("adminPageTitle").textContent="🛡️ Admin Panel";$("adminPageSubtitle").textContent="Private administration · Owner access only";$("adminBackToOverview").hidden=true;window.scrollTo({top:0,behavior:"smooth"});}
+function showAdminFeatureManagement(){$("adminMonitoringSection").hidden=true;$("adminClockReportsSection").hidden=true;$("adminSecurityHubView").hidden=true;adminSecurityFolderOpen=false;
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  ["adminOverviewView","adminMoveAuditSection","adminRejectedMovesSection","adminStreakReviewsSection","adminSuspiciousPlayersSection","adminPlayerReportsSection","adminUserManagementSection"].forEach(function(id){$(id).hidden=true;});
  $("adminFeaturesSection").hidden=false;
