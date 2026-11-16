@@ -1147,7 +1147,16 @@ function renderPlayerList(){
 }
 
 $("tournRegisterBtn").onclick = async function(){
-  if(!sb || !currentUser){ say("Sign in first.", {error:true}); openAuth("signin"); return; }
+  if(!sb){ say("Supabase is unavailable.", {error:true}); return; }
+  if(!currentUser){
+    try{
+      await kfEnsurePlaySession();
+    }catch(err){
+      $("tournMsg").textContent="Could not join as guest: "+(err.message||err);
+      $("tournMsg").classList.add("error");
+      return;
+    }
+  }
 
   var actionBtn = $("tournRegisterBtn");
   var cancelling = !!tournMyEntry;
@@ -1190,7 +1199,7 @@ $("tournRegisterBtn").onclick = async function(){
 };
 
 $("tournamentBtn").onclick = function(){
-  if(!currentUser){ say("Sign in to join the tournament.", {error:true}); openAuth("signin"); return; }
+  // Anyone can view the tournament; a guest session is created only on Register.
   openTournDialog();
 };
   function roundName(round, totalRounds){
@@ -2444,9 +2453,9 @@ async function startQuickPlay(){
   computerMode = false;
   document.body.classList.remove("computer-mode");
   if(!sb){ say("Supabase is unavailable.", {error: true}); return; }
-  var sess = await sb.auth.getSession();
-  var session = sess.data && sess.data.session ? sess.data.session : null;
-  if(!session){ openAuth("signin"); say("Sign in before using Quick Play.", {silentToast: true}); return; }
+  var session;
+  try { session = await kfEnsurePlaySession(); }
+  catch(err) { say("Could not enter Quick Play as guest: "+(err.message||err), {error:true}); return; }
   currentUser = session.user;
   humilApplied = false;
   humilChosenType = null;
