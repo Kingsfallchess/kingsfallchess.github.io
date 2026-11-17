@@ -50,6 +50,8 @@ public class MainActivity extends Activity {
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         showStartupSplash();
+        getWindow().setStatusBarColor(Color.BLACK);
+        getWindow().setNavigationBarColor(Color.BLACK);
 
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -131,6 +133,8 @@ public class MainActivity extends Activity {
         long remaining = Math.max(0L, 950L - elapsed);
         splashHandler.postDelayed(() -> {
             if (startupSplash == null || isFinishing() || isDestroyed()) return;
+            getWindow().setStatusBarColor(Color.rgb(27, 2, 8));
+            getWindow().setNavigationBarColor(Color.rgb(27, 2, 8));
             View current = startupSplash;
             current.animate().alpha(0f).setDuration(210).withEndAction(() -> {
                 if (current.getParent() == root) root.removeView(current);
