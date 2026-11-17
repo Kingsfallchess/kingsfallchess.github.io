@@ -1,6 +1,10 @@
 name: Build Kingsfall Android APK
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/android-apk.yml'
   push:
     branches:
       - main
