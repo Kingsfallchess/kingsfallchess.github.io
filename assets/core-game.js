@@ -19,6 +19,7 @@ $("themeToggle").onclick = function(){
 
 /* ===== NAV / PAGES ===== */
 function showPage(name){
+  if(name === "admin" && window.kfIsNativeApp) return;
   document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("active"); });
   document.querySelectorAll(".nav-tab").forEach(function(t){ t.classList.remove("active"); });
   var pageEl = $("page" + name.charAt(0).toUpperCase() + name.slice(1));

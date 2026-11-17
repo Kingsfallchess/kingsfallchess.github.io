@@ -1372,12 +1372,12 @@ async function loadChampion(){
   /* PRIVATE ADMIN PANEL */
 var adminOwnerId="cc80cc38-f476-4edd-8efc-45e2722f3c4f",adminUsersCache=[],adminFeatureCache={};
 function configureAdminAccess(user){
- var ok=!!(user&&user.id===adminOwnerId);$("navAdmin").hidden=!ok;
+ var ok=!!(!window.kfIsNativeApp&&user&&user.id===adminOwnerId);$("navAdmin").hidden=!ok;
  if(!ok&&$("pageAdmin").classList.contains("active"))showPage("home");
 }
 function adminEscape(v){return String(v==null?"":v).replace(/[&<>"']/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch];});}
 async function adminInvoke(body){
- if(!currentUser||currentUser.id!==adminOwnerId)throw Error("Owner access required");
+ if(window.kfIsNativeApp||!currentUser||currentUser.id!==adminOwnerId)throw Error("Administration is available on the website only");
  var r=await sb.functions.invoke("kf-admin",{body:body});if(r.error)throw r.error;if(r.data&&r.data.error)throw Error(r.data.error);return r.data;
 }
 function adminIllegalBoard(a){
