@@ -1683,6 +1683,16 @@ body.kf-chat-open #kfChatLauncher{opacity:0;pointer-events:none}
  .kf-chat-bottom{padding-bottom:calc(11px + env(safe-area-inset-bottom,0px))}
 }
 
+/* Kingsfall Android home lobby only: stay clear of Android system bars.
+   Live fullscreen games (.game-focus) deliberately retain their current layout. */
+@media (max-width: 700px) {
+  html.kf-native-app body:not(.game-focus):has(#pageHome.active) > .wrap > header.topnav {
+    padding-top: calc(10px + max(28px, env(safe-area-inset-top, 0px)));
+  }
+  html.kf-native-app body:not(.game-focus):has(#pageHome.active) #pageHome {
+    padding-bottom: calc(24px + max(30px, env(safe-area-inset-bottom, 0px)));
+  }
+}
 </style>
 </head>
 <body>
