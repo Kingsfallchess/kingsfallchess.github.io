@@ -272,6 +272,7 @@ function openAuth(m){
   $("signupCountryOption").hidden = !up;
   kfSetCountryPicker("signupFlagEnabled","signupCountryWrap","signupCountry","");
   $("authDialog").classList.add("is-open");
+  if(window.kfTranslateUi)window.kfTranslateUi();
   setTimeout(function(){var field=$(recovery?"password":up?"signupName":"email");if(field)field.focus();},50);
 }
 $("signIn").onclick = null;
@@ -314,7 +315,7 @@ $("authForm").addEventListener("submit", async function(e){
     if(submitMode === "signup"){
       var uname = ($("signupName").value || "").trim();
       var countryCode = kfSelectedCountry("signupFlagEnabled","signupCountry");
-      result = await withTimeout(sb.auth.signUp({email: email, password: password, options: {emailRedirectTo: REDIRECT, data: {username: uname, country_code: countryCode}}}), 15000);
+      result = await withTimeout(sb.auth.signUp({email: email, password: password, options: {emailRedirectTo: REDIRECT, data: {username: uname, country_code: countryCode, ui_language: (window.kfGetLanguage ? window.kfGetLanguage() : "en")}}}), 15000);
     } else {
       result = await withTimeout(sb.auth.signInWithPassword({email: email, password: password}), 15000);
     }
@@ -428,6 +429,7 @@ $("accountGateRetry").addEventListener("click",async function(){
 });
 $("accountGateSignOut").addEventListener("click",function(){$("signOut").click();});
 function applyAuthUser(user){
+  if(window.kfAdoptAccountLanguage)window.kfAdoptAccountLanguage(user);
   var isGuest=!!(user && user.is_anonymous);
   var username = user && user.user_metadata ? user.user_metadata.username : null;
   var avatarUrl = user && user.user_metadata ? user.user_metadata.avatar_url : null;
@@ -595,7 +597,7 @@ $("profileForm").addEventListener("submit", async function(e){
   $("profileMessage").textContent = "";
   try{
     var countryCode=kfSelectedCountry("profileFlagEnabled","profileCountry");
-    var res = await sb.auth.updateUser({data: {username: username,country_code: countryCode}});
+    var res = await sb.auth.updateUser({data: {username: username,country_code: countryCode,ui_language: (window.kfGetLanguage ? window.kfGetLanguage() : "en")}});
     if(res.error) throw res.error;
     if(res.data&&res.data.user){currentUser=res.data.user;applyAuthUser(res.data.user);}else{await updateAuth();}
     $("profileMessage").textContent = "Profile saved successfully.";
