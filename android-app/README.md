@@ -27,3 +27,7 @@ Test sign-in and sign-out, opening live games, realtime reconnects, premoves,
 clock/background handling, analysis workers, browser redirects, and uploads.
 Verify an admin account sees **no Admin tab or admin page in the app**, yet
 retains admin access in Chrome using the same account.
+
+## Build validation
+
+CI pull request verifies the Android debug APK can be assembled.
