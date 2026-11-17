@@ -1692,6 +1692,27 @@ body.kf-chat-open #kfChatLauncher{opacity:0;pointer-events:none}
     padding-bottom: calc(24px + max(36px, env(safe-area-inset-bottom, 0px)));
   }
 }
+/* Language settings belong to the Android shell only, never the desktop site. */
+.kf-language-control{display:none;gap:6px;margin:12px 0 16px}
+html.kf-native-app .kf-language-control{display:flex;flex-direction:column}
+.kf-language-control label{font-size:12px;color:var(--muted)}
+.kf-language-control select{padding:10px 12px;border-radius:9px;background:var(--panel-bg2);border:1px solid var(--line);color:var(--text);font:inherit;direction:ltr}
+html.kf-native-app.kf-fa #authDialog .modal,
+html.kf-native-app.kf-fa #profileDialog .profile-modal,
+html.kf-native-app.kf-fa #tournDialog .tourn-panel{direction:rtl;text-align:right}
+html.kf-native-app.kf-fa #authDialog input,
+html.kf-native-app.kf-fa #profileDialog input{direction:ltr;text-align:left}
+html.kf-native-app.kf-fa #authDialog .modal-head,
+html.kf-native-app.kf-fa #profileDialog .modal-head{direction:rtl}
+html.kf-native-app.kf-fa #pageHome .quickbar,
+html.kf-native-app.kf-fa #pageHome .tournament-bar,
+html.kf-native-app.kf-fa #pageHome .roulette-bar,
+html.kf-native-app.kf-fa #pageHome .computer-panel,
+html.kf-native-app.kf-fa #pageHome .side,
+html.kf-native-app.kf-fa #pageHome .history-section{direction:rtl}
+html.kf-native-app.kf-fa #pageHome #board,
+html.kf-native-app.kf-fa #pageHome .board-panel,
+html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
 </style>
 </head>
 <body class="kf-home-active">
@@ -2001,6 +2022,10 @@ body.kf-chat-open #kfChatLauncher{opacity:0;pointer-events:none}
       </div>
       <button class="close" type="button" id="close">×</button>
     </div>
+    <div class="kf-language-control" id="kfAuthLanguageControl">
+      <label for="kfAuthLanguage">Language / زبان</label>
+      <select id="kfAuthLanguage" aria-label="Choose interface language"><option value="en">English</option><option value="fa">فارسی</option></select>
+    </div>
     <div id="signupNameWrap" hidden>
       <label for="signupName">Choose a username</label>
       <input id="signupName" type="text" minlength="3" maxlength="20" autocomplete="nickname" placeholder="e.g. PersianKnight">
@@ -2027,6 +2052,10 @@ body.kf-chat-open #kfChatLauncher{opacity:0;pointer-events:none}
         <h2>Username / Profile</h2>
       </div>
       <button class="close" type="button" id="profileClose">×</button>
+    </div>
+    <div class="kf-language-control" id="kfProfileLanguageControl">
+      <label for="kfProfileLanguage">Language / زبان</label>
+      <select id="kfProfileLanguage" aria-label="Choose interface language"><option value="en">English</option><option value="fa">فارسی</option></select>
     </div>
     <img id="avatarPreview" class="avatar-preview" alt="Profile photo preview" hidden>
     <label for="avatarFile">Profile photo</label>
@@ -2392,7 +2421,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js","assets/core-game.js?v=crown360b","assets/analysis.js?v=c4a3fd5","assets/core-final.js","assets/chat.js"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js","assets/core-game.js?v=crown360b","assets/analysis.js?v=c4a3fd5","assets/core-final.js","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
