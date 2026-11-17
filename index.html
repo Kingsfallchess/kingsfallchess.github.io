@@ -3,6 +3,11 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kingsfall — Every King Can Fall.</title>
+<script>
+/* Presentation-only separation: all admin APIs still require server authorization. */
+window.kfIsNativeApp = /KingsfallAndroid\/\d/.test(navigator.userAgent);
+if (window.kfIsNativeApp) document.documentElement.classList.add("kf-native-app");
+</script>
 <style>
 :root{
   --bg1:#571124;--bg2:#300610;--bg3:#1b0208;
@@ -84,6 +89,7 @@ header.topnav{
 @media(max-width:700px){.nav-tab .admin-knight-icon,.nav-tab .admin-knight-icon svg{width:29px;height:29px}}
 /* Hidden admin control must stay hidden, including during swipe transitions. */
 #navAdmin[hidden]{display:none!important;visibility:hidden!important;pointer-events:none!important}
+html.kf-native-app #navAdmin,html.kf-native-app #pageAdmin{display:none!important;visibility:hidden!important;pointer-events:none!important}
 .topnav-right{display:flex;gap:8px;align-items:center;flex:none}
 .get-vip-btn{border:1px solid var(--gold);border-radius:10px;padding:9px 11px;background:linear-gradient(135deg,rgba(237,197,107,.19),rgba(215,163,62,.08));color:var(--gold2);font-weight:800;font-size:11px;font-family:inherit;letter-spacing:.6px;white-space:nowrap;cursor:pointer;box-shadow:0 0 10px rgba(237,197,107,.13);transition:filter .2s,box-shadow .2s}
 .get-vip-btn:hover,.get-vip-btn:focus-visible{filter:brightness(1.15);box-shadow:0 0 13px rgba(237,197,107,.32)}
