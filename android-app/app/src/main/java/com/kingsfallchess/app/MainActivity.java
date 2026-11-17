@@ -6,6 +6,12 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+import android.widget.ImageView;
+import android.os.Handler;
+import android.os.Looper;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -29,6 +35,9 @@ public class MainActivity extends Activity {
     private WebView web;
     private FrameLayout root;
     private View offline;
+    private View startupSplash;
+    private long splashStartedAt;
+    private final Handler splashHandler = new Handler(Looper.getMainLooper());
     private ValueCallback<Uri[]> fileCallback;
 
     @Override public void onCreate(Bundle savedInstanceState) {
@@ -40,6 +49,9 @@ public class MainActivity extends Activity {
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
+        showStartupSplash();
+        getWindow().setStatusBarColor(Color.BLACK);
+        getWindow().setNavigationBarColor(Color.BLACK);
 
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -78,15 +90,57 @@ public class MainActivity extends Activity {
                 return true;
             }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) showOffline();
+                if (request.isForMainFrame()) { showOffline(); dismissStartupSplash(); }
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (url.startsWith(URL)) hideOffline();
+                if (url.startsWith(URL)) { hideOffline(); dismissStartupSplash(); }
             }
         });
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) {
             web.loadUrl(URL);
         }
+    }
+
+    /* Native black startup view: exact crown image from the website's header.
+       The WebView loads beneath it. Do not change the live chess interface. */
+    private void showStartupSplash() {
+        FrameLayout splash = new FrameLayout(this);
+        splash.setBackgroundColor(Color.BLACK);
+        ImageView logo = new ImageView(this);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        int diameter = (int) (180f * getResources().getDisplayMetrics().density + 0.5f);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(diameter, diameter, Gravity.CENTER);
+        splash.addView(logo, params);
+        try (java.io.InputStream input = getAssets().open("kingsfall_crown.webp.b64")) {
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            byte[] chunk = new byte[4096];
+            int n;
+            while ((n = input.read(chunk)) != -1) buffer.write(chunk, 0, n);
+            byte[] bytes = Base64.decode(buffer.toByteArray(), Base64.DEFAULT);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            if (bitmap != null) logo.setImageBitmap(bitmap);
+        } catch (java.io.IOException | IllegalArgumentException err) {
+            android.util.Log.w("Kingsfall", "Startup crown unavailable", err);
+        }
+        startupSplash = splash;
+        splashStartedAt = android.os.SystemClock.uptimeMillis();
+        root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void dismissStartupSplash() {
+        if (startupSplash == null) return;
+        long elapsed = android.os.SystemClock.uptimeMillis() - splashStartedAt;
+        long remaining = Math.max(0L, 950L - elapsed);
+        splashHandler.postDelayed(() -> {
+            if (startupSplash == null || isFinishing() || isDestroyed()) return;
+            getWindow().setStatusBarColor(Color.rgb(27, 2, 8));
+            getWindow().setNavigationBarColor(Color.rgb(27, 2, 8));
+            View current = startupSplash;
+            current.animate().alpha(0f).setDuration(210).withEndAction(() -> {
+                if (current.getParent() == root) root.removeView(current);
+                if (startupSplash == current) startupSplash = null;
+            }).start();
+        }, remaining);
     }
 
     private void showOffline() {
@@ -145,6 +199,7 @@ public class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         if (fileCallback != null) fileCallback.onReceiveValue(null);
+        splashHandler.removeCallbacksAndMessages(null);
         root.removeView(web);
         web.destroy();
         super.onDestroy();
