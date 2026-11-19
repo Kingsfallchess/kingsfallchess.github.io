@@ -235,14 +235,20 @@ function closeAuthDialog(){
   var dialog=$("authDialog");
   if(dialog) dialog.classList.remove("is-open");
 }
-var kfCountryCodes=["AF","AL","DZ","AD","AO","AG","AR","AM","AU","AT","AZ","BS","BH","BD","BB","BY","BE","BZ","BJ","BT","BO","BA","BW","BR","BN","BG","BF","BI","KH","CM","CA","CV","CF","TD","CL","CN","CO","KM","CG","CD","CR","CI","HR","CU","CY","CZ","DK","DJ","DM","DO","EC","EG","SV","GQ","ER","EE","SZ","ET","FJ","FI","FR","GA","GM","GE","DE","GH","GR","GD","GT","GN","GW","GY","HT","HN","HU","IS","IN","ID","IR","IQ","IE","IL","IT","JM","JP","JO","KZ","KE","KI","XK","KW","KG","LA","LV","LB","LS","LR","LY","LI","LT","LU","MG","MW","MY","MV","ML","MT","MH","MR","MU","MX","FM","MD","MC","MN","ME","MA","MZ","MM","NA","NR","NP","NL","NZ","NI","NE","NG","KP","MK","NO","OM","PK","PW","PS","PA","PG","PY","PE","PH","PL","PT","QA","RO","RU","RW","KN","LC","VC","WS","SM","ST","SA","SN","RS","SC","SL","SG","SK","SI","SB","SO","ZA","KR","SS","ES","LK","SD","SR","SE","CH","SY","TW","TJ","TZ","TH","TL","TG","TO","TT","TN","TR","TM","TV","UG","UA","AE","GB","US","UY","UZ","VU","VA","VE","VN","YE","ZM","ZW"];
-var kfCountryNames=(function(){try{return new Intl.DisplayNames(["en"],{type:"region"});}catch(e){return null;}})();
+function kfIsCountryCode(code){return typeof code === "string" && /^[A-Z]{2}$/.test(code) && code !== "XX";}
 function kfFlagEmoji(code){if(!/^[A-Z]{2}$/.test(code||""))return "";return String.fromCodePoint(code.charCodeAt(0)+127397,code.charCodeAt(1)+127397);}
-function kfSelectedCountry(checkboxId,selectId){var enabled=$(checkboxId).checked,code=$(selectId).value; if(enabled&&!kfCountryCodes.includes(code))throw new Error("Choose your country to show its flag.");return enabled?code:"";}
-function kfSetupCountryPicker(toggleId,wrapId,selectId){var toggle=$(toggleId),wrap=$(wrapId),select=$(selectId);select.innerHTML='<option value="">Select your country</option>';kfCountryCodes.map(function(code){return {code:code,name:kfCountryNames?kfCountryNames.of(code):code};}).sort(function(a,b){return a.name.localeCompare(b.name);}).forEach(function(item){var option=document.createElement("option");option.value=item.code;option.textContent=kfFlagEmoji(item.code)+" "+item.name;select.appendChild(option);});toggle.addEventListener("change",function(){wrap.hidden=!toggle.checked;select.required=toggle.checked;});}
-function kfSetCountryPicker(toggleId,wrapId,selectId,code){code=kfCountryCodes.includes(code)?code:"";$(toggleId).checked=!!code;$(selectId).value=code;$(wrapId).hidden=!code;$(selectId).required=!!code;}
-kfSetupCountryPicker("signupFlagEnabled","signupCountryWrap","signupCountry");
-kfSetupCountryPicker("profileFlagEnabled","profileCountryWrap","profileCountry");
+async function kfDetectCountry(){
+  try {
+    var result = await withTimeout(sb.rpc("kf_connection_country"), 2000);
+    return !result.error && kfIsCountryCode(result.data) ? result.data : "";
+  } catch (error) {
+    return "";
+  }
+}
+function kfShowsFlag(metadata){
+  return typeof metadata.show_country_flag === "boolean"
+    ? metadata.show_country_flag : kfIsCountryCode(metadata.country_code);
+}
 function openAuth(m){
   mode = m;
   $("authForm").reset();
@@ -270,7 +276,7 @@ function openAuth(m){
   $("signupNameWrap").hidden = !up;
   $("signupName").required = up;
   $("signupCountryOption").hidden = !up;
-  kfSetCountryPicker("signupFlagEnabled","signupCountryWrap","signupCountry","");
+  $("signupFlagEnabled").checked = false;
   $("authDialog").classList.add("is-open");
   if(window.kfTranslateUi)window.kfTranslateUi();
   setTimeout(function(){var field=$(recovery?"password":up?"signupName":"email");if(field)field.focus();},50);
@@ -314,8 +320,9 @@ $("authForm").addEventListener("submit", async function(e){
     var result;
     if(submitMode === "signup"){
       var uname = ($("signupName").value || "").trim();
-      var countryCode = kfSelectedCountry("signupFlagEnabled","signupCountry");
-      result = await withTimeout(sb.auth.signUp({email: email, password: password, options: {emailRedirectTo: REDIRECT, data: {username: uname, country_code: countryCode, ui_language: (window.kfGetLanguage ? window.kfGetLanguage() : "en")}}}), 15000);
+      var showFlag = $("signupFlagEnabled").checked;
+      var countryCode = await kfDetectCountry();
+      result = await withTimeout(sb.auth.signUp({email: email, password: password, options: {emailRedirectTo: REDIRECT, data: {username: uname, registration_country: countryCode, show_country_flag: showFlag, country_code: showFlag ? countryCode : "", ui_language: (window.kfGetLanguage ? window.kfGetLanguage() : "en")}}}), 15000);
     } else {
       result = await withTimeout(sb.auth.signInWithPassword({email: email, password: password}), 15000);
     }
@@ -434,9 +441,10 @@ function applyAuthUser(user){
   var username = user && user.user_metadata ? user.user_metadata.username : null;
   var avatarUrl = user && user.user_metadata ? user.user_metadata.avatar_url : null;
   $("userBadge").textContent = username || (isGuest ? "Guest" : (user ? (user.email || "Player") : ""));
-  var flagCode=user&&user.user_metadata&&user.user_metadata.country_code;
+  var metadata = user && user.user_metadata || {};
+  var flagCode = kfShowsFlag(metadata) && (metadata.registration_country || metadata.country_code);
   var flag=$("profileFlagBadge");
-  flag.textContent=kfCountryCodes.includes(flagCode)?kfFlagEmoji(flagCode):"";
+  flag.textContent=kfIsCountryCode(flagCode)?kfFlagEmoji(flagCode):"";
   flag.style.display=user&&flag.textContent?"inline-block":"none";
   $("userBadge").title = isGuest ? "Temporary guest · stored on this device" :
     username ? ("Signed in as " + username) : (user ? (user.email || "Player") : "");
@@ -508,7 +516,7 @@ $("avatarThumb").onclick = async function(){
   $("profileMessage").textContent = "";
   $("profileMessage").classList.remove("error");
   $("profileName").value = (user.user_metadata && user.user_metadata.username) || "";
-  kfSetCountryPicker("profileFlagEnabled","profileCountryWrap","profileCountry",user.user_metadata&&user.user_metadata.country_code);
+  $("profileFlagEnabled").checked = kfShowsFlag(user.user_metadata || {});
   var avatarUrl = user.user_metadata ? user.user_metadata.avatar_url : null;
   $("avatarPreview").src = avatarUrl || "";
   $("avatarPreview").hidden = !avatarUrl;
@@ -596,8 +604,10 @@ $("profileForm").addEventListener("submit", async function(e){
   btn.textContent = "Saving…";
   $("profileMessage").textContent = "";
   try{
-    var countryCode=kfSelectedCountry("profileFlagEnabled","profileCountry");
-    var res = await sb.auth.updateUser({data: {username: username,country_code: countryCode,ui_language: (window.kfGetLanguage ? window.kfGetLanguage() : "en")}});
+    var metadata = currentUser && currentUser.user_metadata || {};
+    var showFlag = $("profileFlagEnabled").checked;
+    var countryCode = metadata.registration_country || await kfDetectCountry();
+    var res = await sb.auth.updateUser({data: {username: username,registration_country: countryCode,show_country_flag: showFlag,country_code: showFlag ? (countryCode || metadata.country_code || "") : "",ui_language: (window.kfGetLanguage ? window.kfGetLanguage() : "en")}});
     if(res.error) throw res.error;
     if(res.data&&res.data.user){currentUser=res.data.user;applyAuthUser(res.data.user);}else{await updateAuth();}
     $("profileMessage").textContent = "Profile saved successfully.";
