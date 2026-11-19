@@ -2420,7 +2420,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js","assets/core-game.js?v=crown360b","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
