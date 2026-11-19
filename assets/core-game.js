@@ -2620,7 +2620,21 @@ function kfUpdateRoyalMatchBadges(row){
    badge.setAttribute("aria-label",badge.title);
  });
 }
-  function enterFullscreenGame(row){
+async function loadGameNameFlags(row, myIsWhite, topName, botName){
+  try{
+    var result = await sb.rpc("kf_game_player_flags", {p_game_id: row.id});
+    if(result.error || !Array.isArray(result.data) || !onlineGame || onlineGame.id !== row.id ||
+       !currentUser || currentUser.id !== (myIsWhite ? row.white_id : row.black_id) ||
+       !document.body.classList.contains("game-focus")) return;
+    result.data.forEach(function(player){
+      if(!kfIsCountryCode(player.country_code)) return;
+      var isMe = player.player_id === currentUser.id;
+      var name = isMe ? botName : topName;
+      $(isMe ? "gfsBotName" : "gfsTopName").textContent = kfFlagEmoji(player.country_code) + " " + name;
+    });
+  }catch(error){ console.warn("Could not load game flags", error); }
+}
+function enterFullscreenGame(row){
   document.body.classList.add("game-focus");
   kfUpdateRoyalMatchBadges(row);
   fsPlayerColor = (row.white_id === currentUser.id) ? "w" : "b";
@@ -2637,10 +2651,7 @@ function kfUpdateRoyalMatchBadges(row){
 
   $("gfsTopName").textContent = topName || "Opponent";
   $("gfsBotName").textContent = botName || "You";
-  ["gfsTopName","gfsBotName"].forEach(function(id){
-    var el = $(id);
-    if(el){ el.textContent = el.textContent; }
-  });
+  loadGameNameFlags(row, topIsBlack, topName || "Opponent", botName || "You");
 
   var meHadHandicap = (fsPlayerColor === "w" && isValidHcp(row.white_handicap))
                    || (fsPlayerColor === "b" && isValidHcp(row.black_handicap));
