@@ -122,9 +122,8 @@ function loadLeagueModule(){
 window.addEventListener("load",loadLeagueModule,{once:true});
 if(document.readyState==="complete")loadLeagueModule();
 function vipSelectSection(section){
-  if(section==="league")loadLeagueModule();
-  if(!["league","tournament","themes"].includes(section))section="themes";
-  ["league","tournament","themes"].forEach(function(name){
+  if(!["tournament","themes"].includes(section))section="themes";
+  ["tournament","themes"].forEach(function(name){
     var tab=document.querySelector('[data-vip-section="'+name+'"]');
     var panel=document.getElementById("vipPanel"+name.charAt(0).toUpperCase()+name.slice(1));
     if(tab){tab.classList.toggle("active",name===section);tab.setAttribute("aria-selected",name===section?"true":"false");tab.tabIndex=name===section?0:-1;}
@@ -136,11 +135,21 @@ document.querySelectorAll("[data-vip-section]").forEach(function(tab){
 });
 vipSelectSection("themes");
 
-$("leagueBtn").onclick = function(){
-  showPage("vip");
-  vipSelectSection("league");
-  window.scrollTo(0,0);
+const leagueHomeButton = $("leagueBtn");
+const leagueHomePanel = $("vipPanelLeague");
+function setLeagueOpen(open){
+  leagueHomePanel.hidden = !open;
+  leagueHomeButton.setAttribute("aria-expanded", String(open));
+}
+leagueHomeButton.onclick = function(){
+  loadLeagueModule();
+  setLeagueOpen(leagueHomePanel.hidden);
 };
+const closeLeagueWhenAway = new MutationObserver(function(){
+  if (!$("pageHome").classList.contains("active") || document.body.classList.contains("game-focus")) setLeagueOpen(false);
+});
+closeLeagueWhenAway.observe($("pageHome"), {attributes:true, attributeFilter:["class"]});
+closeLeagueWhenAway.observe(document.body, {attributes:true, attributeFilter:["class"]});
 
 $("vipBack").onclick=function(){showPage("home");};
 $("vipApply").onclick=function(){
