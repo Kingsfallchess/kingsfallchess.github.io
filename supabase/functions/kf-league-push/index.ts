@@ -29,13 +29,14 @@ Deno.serve(async req => {
     const input = await req.json();
     const isProbe = input.validate_only === true;
     if (!isProbe && (typeof input.token !== "string" || input.token.length < 32 || input.token.length > 4096
-      || !["group_ready","schedule_ready"].includes(input.event))) return json({error:"invalid_request"},400);
+      || input.event !== "group_ready")) return json({error:"invalid_request"},400);
     const fa = input.language === "fa";
-    const ready = input.event === "group_ready";
+    const ttl = isProbe ? 0 : Math.min(86400,Math.max(0,Math.floor((Date.parse(input.deadline)-Date.now())/1000)));
     const message = { ...(isProbe ? {topic:"league-validation"} : {token:input.token}),
-      notification:{title:fa?"لیگ کینگزفال":"Kingsfall League",body:ready
-        ? (fa?"گروه ده‌نفره تکمیل شد. برای ثبت ساعت بازی وارد لیگ شو.":"Your group is full. Open the league to set your availability.")
-        : (fa?"برنامهٔ بازی‌ها آماده است. بخش لیگ را ببین.":"Your schedule is ready. Open the league to see it.")}};
+      notification:{title:fa?"گروه لیگ تکمیل شد":"Your league group is full",
+        body:fa?"مهلت ثبت ساعت‌های آزاد ۲۴ ساعت است. وارد بخش VIP ← لیگ شو.":"The 24-hour availability window is open. Choose your playing times in VIP → League."},
+      android:{ttl:ttl+"s",collapse_key:"league-"+(input.group_id||"validation"),
+        notification:{tag:"league-"+(input.group_id||"validation")}}};
     const token = await accessToken();
     const reply = await fetch("https://fcm.googleapis.com/v1/projects/"+project+"/messages:send",{
       method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},

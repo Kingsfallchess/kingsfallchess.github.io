@@ -21,12 +21,57 @@
     alertStatus.textContent = reply.error ? label('Try enabling alerts again.', 'فعال‌سازی اعلان را دوباره امتحان کن.')
       : label('Phone registered for league alerts.', 'گوشی برای اعلان لیگ ثبت شد.');
   });
+  const availability = document.createElement('div');
+  panel.append(availability);
+  function renderWindows(group) {
+    availability.replaceChildren();
+    if (Date.now() >= Date.parse(group.deadline)) return;
+    const rows = document.createElement('div');
+    const local = ms => {
+      const date = new Date(ms);
+      return new Date(ms - date.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    };
+    const start = Math.ceil((Date.parse(group.deadline)+900000)/900000)*900000;
+    const end = Date.parse(group.deadline)+86400000;
+    const add = (a,b) => {
+      const row = document.createElement('div');
+      for (const [value,caption] of [[a,label('From','از')],[b,label('To','تا')]]) {
+        const field = document.createElement('input');
+        field.type = 'datetime-local'; field.value = local(value); field.min = local(start); field.max = local(end);
+        const fieldLabel = document.createElement('label'); fieldLabel.append(caption,field); row.append(fieldLabel);
+      }
+      const remove = document.createElement('button'); remove.textContent=label('Remove','حذف');
+      remove.onclick=()=>row.remove(); row.append(remove); rows.append(row);
+    };
+    group.windows.forEach(w=>add(Date.parse(w.start),Date.parse(w.end)));
+    if (!group.windows.length) add(start,Math.min(start+3600000,end));
+    const extra = document.createElement('button'); extra.textContent=label('Add time window','افزودن بازه');
+    extra.onclick=()=>add(start,Math.min(start+3600000,end));
+    const save = document.createElement('button'); save.textContent=label('Save playing times','ذخیره ساعت‌ها');
+    const status = document.createElement('p'); status.setAttribute('role','status');
+    save.onclick=async()=>{
+      save.disabled=true;
+      try {
+        const windows=Array.from(rows.children,row=>{
+          const [a,b] = Array.from(row.querySelectorAll('input'),f=>new Date(f.value).getTime());
+          if (!Number.isFinite(a+b)||a<start||b>end||b-a<900000) throw Error();
+          return {start:new Date(a).toISOString(),end:new Date(b).toISOString()};
+        });
+        const result=await sb.rpc('kf_league_save_windows',{windows});
+        if (result.error) throw Error();
+        status.textContent=label('Playing times saved.','ساعت‌ها ذخیره شد.');
+      } catch {status.textContent=label('Check your time windows and deadline.','بازه‌های زمانی و مهلت ثبت را بررسی کن.');}
+      finally {save.disabled=false;}
+    };
+    availability.append(rows,extra,save,status);
+  }
   let sequence = 0;
   function label(en, fa) {
     return window.kfGetLanguage?.() === 'fa' ? fa : en;
   }
   async function refresh(action = 'status') {
     const request = ++sequence;
+    availability.replaceChildren();
     alerts.hidden = true;
     alertStatus.textContent = '';
     button.disabled = true;
@@ -46,6 +91,12 @@
         if (reply.error) throw reply.error;
         alerts.hidden = !navigator.userAgent.includes('KingsfallLeaguePush/1');
         alerts.textContent = label('Enable phone alerts', 'فعال‌سازی اعلان گوشی');
+        if (reply.data.group_id) {
+          const deadline = new Date(reply.data.deadline);
+          message.textContent = label('Registration closed. Availability deadline (local time): ', 'ثبت‌نام گروه بسته شد. مهلت ثبت ساعت آزاد به وقت محلی: ') + deadline.toLocaleString();
+          renderWindows(reply.data);
+          return;
+        }
         const { joined, level, position } = reply.data;
         panel.dir = window.kfGetLanguage?.() === 'fa' ? 'rtl' : 'ltr';
         message.textContent = joined
