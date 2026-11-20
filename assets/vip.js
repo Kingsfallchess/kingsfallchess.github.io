@@ -112,17 +112,17 @@ function vipInit(){
 }
 
 let leagueModule;
+function loadLeagueModule(){
+  if(leagueModule) return;
+  leagueModule=document.createElement("script");
+  leagueModule.src="assets/league.js?v=season1";
+  leagueModule.onerror=()=>{leagueModule.remove();leagueModule=null;};
+  document.head.appendChild(leagueModule);
+}
+window.addEventListener("load",loadLeagueModule,{once:true});
+if(document.readyState==="complete")loadLeagueModule();
 function vipSelectSection(section){
-  if (section === "league" && !leagueModule) {
-    leagueModule = document.createElement("script");
-    leagueModule.src = "assets/league.js";
-    leagueModule.onerror = () => {
-      leagueModule.remove();
-      leagueModule = null;
-      document.getElementById("vipPanelLeague").textContent = "باز کردن لیگ ممکن نشد. دوباره روی لیگ بزن.";
-    };
-    document.head.appendChild(leagueModule);
-  }
+  if(section==="league")loadLeagueModule();
   if(!["league","tournament","themes"].includes(section))section="themes";
   ["league","tournament","themes"].forEach(function(name){
     var tab=document.querySelector('[data-vip-section="'+name+'"]');
