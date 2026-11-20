@@ -132,7 +132,8 @@ public class MainActivity extends Activity {
             if (web.getUrl() != null && web.getUrl().startsWith(URL)) {
                 web.postWebMessage(new WebMessage("kf-league-token:" + token), Uri.parse(URL));
             }
-        });
+        }).addOnFailureListener(this, error ->
+            android.util.Log.w("Kingsfall", "Could not obtain Firebase push token", error));
     }
 
     /* Native black startup view: exact crown image from the website's header.
