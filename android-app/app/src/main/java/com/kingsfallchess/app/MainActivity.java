@@ -1,6 +1,11 @@
 package com.kingsfallchess.app;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.webkit.WebMessage;
+import com.google.firebase.messaging.FirebaseMessaging;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
@@ -61,7 +66,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " KingsfallAndroid/1");
+        settings.setUserAgentString(settings.getUserAgentString() + " KingsfallAndroid/1 KingsfallLeaguePush/1");
         CookieManager.getInstance().setAcceptCookie(true);
 
         web.setWebChromeClient(new WebChromeClient() {
@@ -83,6 +88,11 @@ public class MainActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (!request.isForMainFrame()) return false;
                 Uri target = request.getUrl();
+                if (request.hasGesture() && "https://kingsfallchess.github.io/enable-league-push".equals(target.toString())
+                        && web.getUrl() != null && web.getUrl().startsWith(URL)) {
+                    enableLeagueAlerts();
+                    return true;
+                }
                 if ("https".equalsIgnoreCase(target.getScheme())
                         && "kingsfallchess.github.io".equalsIgnoreCase(target.getHost())) return false;
                 try { startActivity(new Intent(Intent.ACTION_VIEW, target)); }
@@ -99,6 +109,30 @@ public class MainActivity extends Activity {
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) {
             web.loadUrl(URL);
         }
+    }
+
+    private void enableLeagueAlerts() {
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 4102);
+            return;
+        }
+        sendLeagueToken();
+    }
+
+    @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(code, permissions, results);
+        if (code == 4102 && results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+            sendLeagueToken();
+        }
+    }
+
+    private void sendLeagueToken() {
+        FirebaseMessaging.getInstance().getToken().addOnSuccessListener(this, token -> {
+            if (web.getUrl() != null && web.getUrl().startsWith(URL)) {
+                web.postWebMessage(new WebMessage("kf-league-token:" + token), Uri.parse(URL));
+            }
+        });
     }
 
     /* Native black startup view: exact crown image from the website's header.

@@ -6,12 +6,29 @@
   button.className = 'vip-section-tab';
   message.setAttribute('role', 'status');
   panel.replaceChildren(message, button);
+  const alerts = document.createElement('a');
+  const alertStatus = document.createElement('p');
+  alertStatus.setAttribute('role', 'status');
+  alerts.href = '/enable-league-push';
+  alerts.hidden = true;
+  alerts.onclick = () => {
+    alertStatus.textContent = label('Waiting for Android…', 'در انتظار پاسخ اندروید…');
+  };
+  panel.append(alerts, alertStatus);
+  window.addEventListener('message', async event => {
+    if (event.source || typeof event.data !== 'string' || !event.data.startsWith('kf-league-token:')) return;
+    const reply = await sb.rpc('kf_register_league_device', { device_token: event.data.slice('kf-league-token:'.length) });
+    alertStatus.textContent = reply.error ? label('Try enabling alerts again.', 'فعال‌سازی اعلان را دوباره امتحان کن.')
+      : label('Phone registered for league alerts.', 'گوشی برای اعلان لیگ ثبت شد.');
+  });
   let sequence = 0;
   function label(en, fa) {
     return window.kfGetLanguage?.() === 'fa' ? fa : en;
   }
   async function refresh(action = 'status') {
     const request = ++sequence;
+    alerts.hidden = true;
+    alertStatus.textContent = '';
     button.disabled = true;
     button.hidden = true;
     message.textContent = label('Loading league…', 'در حال دریافت وضعیت لیگ…');
@@ -27,6 +44,8 @@
         const reply = await sb.rpc('kf_league_registration', { action });
         if (request !== sequence) return;
         if (reply.error) throw reply.error;
+        alerts.hidden = !navigator.userAgent.includes('KingsfallLeaguePush/1');
+        alerts.textContent = label('Enable phone alerts', 'فعال‌سازی اعلان گوشی');
         const { joined, level, position } = reply.data;
         panel.dir = window.kfGetLanguage?.() === 'fa' ? 'rtl' : 'ltr';
         message.textContent = joined
