@@ -43,6 +43,19 @@
 @media(prefers-reduced-motion:reduce){
   #vipPanelLeague > button{transition:none}
 }
+
+/* User-specific league level, shown within the registration button. */
+#vipPanelLeague > button{width:min(100%,360px);flex-wrap:wrap}
+#vipPanelLeague > button .kf-league-level{
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+  min-height:29px;padding:4px 10px;border-radius:9px;box-sizing:border-box;
+  border:1px solid rgba(28,50,71,.22);background:rgba(30,51,71,.13);
+  color:#172a41;font-size:12px;font-weight:900;line-height:1.2;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+#vipPanelLeague > button.is-secondary .kf-league-level{
+  border-color:rgba(243,217,154,.45);background:rgba(243,217,154,.12);color:#f3d99a;
+}
 `;
     document.head.appendChild(leagueCtaStyle);
   }
@@ -156,6 +169,17 @@
   function label(en, fa) {
     return window.kfGetLanguage?.() === 'fa' ? fa : en;
   }
+
+  function setLeagueAction(caption, level) {
+    button.textContent = caption;
+    const numericLevel = Number(level);
+    if (!Number.isSafeInteger(numericLevel) || numericLevel < 1) return;
+    const badge = document.createElement('span');
+    badge.className = 'kf-league-level';
+    const formatted = numericLevel.toLocaleString(window.kfGetLanguage?.() === 'fa' ? 'fa-IR' : 'en-US', { useGrouping: false });
+    badge.textContent = label('Level ' + formatted, 'سطح ' + formatted);
+    button.appendChild(badge);
+  }
   async function refresh(action = 'status') {
     const request = ++sequence;
     availability.replaceChildren();
@@ -189,7 +213,8 @@
           if(group.finished) {
             message.textContent=label('League complete','لیگ به پایان رسید');
             button.hidden=button.disabled=false;
-            button.textContent=label('Join next league','ثبت‌نام لیگ بعد');
+            const ownFinalLevel = group.standings?.find(row => row.player === currentUser?.id)?.next_level;
+            setLeagueAction(label('Join next league','ثبت‌نام لیگ بعد'), ownFinalLevel);
             button.onclick=()=>refresh('join');
           } else if(!group.can_edit) {
             message.textContent=label('Registration closed. See your schedule below.','ثبت‌نام بسته شد. برنامهٔ بازی‌ها را ببین.');
@@ -205,7 +230,7 @@
         message.textContent = joined
           ? label('Level ' + level + ' · Your place on the waiting list: ' + position + '. The 24-hour clock has not started.', 'سطح ' + level + ' · جایگاهت در صف پیش‌ثبت‌نام: ' + position + '. هنوز مهلت ۲۴ ساعته شروع نشده.')
           : label('Pre-register for an 18-day league with ten players at your level.', 'پیش‌ثبت‌نام لیگ ۱۸ روزه با ده بازیکن هم‌سطح.');
-        button.textContent = joined ? label('Leave waiting list', 'لغو پیش‌ثبت‌نام') : label('Pre-register', 'پیش‌ثبت‌نام');
+        setLeagueAction(joined ? label('Leave waiting list', 'لغو پیش‌ثبت‌نام') : label('Pre-register', 'پیش‌ثبت‌نام'), level);
         button.onclick = () => refresh(joined ? 'leave' : 'join');
       }
     } catch (error) {
