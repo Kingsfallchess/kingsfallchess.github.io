@@ -185,6 +185,37 @@
 #vipPanelLeague .kf-schedule-empty{color:var(--muted,#c2a7ad);font-size:12px;padding:10px 5px;text-align:center}
 @media(max-width:430px){#vipPanelLeague .kf-schedule-day-body{padding:9px;gap:9px}#vipPanelLeague .kf-schedule-match{padding:11px}#vipPanelLeague .kf-schedule-match-head{margin-bottom:13px}#vipPanelLeague .kf-schedule-avatar{width:37px;height:37px;font-size:17px}#vipPanelLeague .kf-schedule-player-name{font-size:11.5px}#vipPanelLeague .kf-schedule-countdown{font-size:11px;padding:6px 7px}#vipPanelLeague .kf-schedule-detail{font-size:10px}}
 @media(prefers-reduced-motion:reduce){#vipPanelLeague .kf-schedule-day>summary .kf-schedule-chevron{transition:none}}
+
+/* Highlight the current player's pairing with a distinct green surface. */
+#vipPanelLeague .kf-schedule-match.is-mine{
+  border:1.5px solid rgba(108,230,148,.82);
+  background:linear-gradient(140deg,rgba(28,108,65,.38),rgba(14,53,40,.48));
+  box-shadow:inset 0 0 0 1px rgba(142,255,178,.13),0 7px 21px rgba(12,91,49,.20);
+}
+#vipPanelLeague .kf-schedule-match.is-mine .kf-schedule-avatar{
+  border-color:rgba(135,231,162,.55);
+  background:linear-gradient(145deg,rgba(106,205,142,.20),rgba(31,115,74,.32));
+  color:#c8f6d5;
+}
+#vipPanelLeague .kf-schedule-match.is-mine .kf-schedule-you{color:#9df2b8;font-weight:850}
+#vipPanelLeague .kf-schedule-match.is-mine .kf-schedule-details{border-top-color:rgba(126,226,150,.25)}
+#vipPanelLeague .kf-schedule-match.is-mine .kf-schedule-detail{border-color:rgba(126,226,150,.24)}
+#vipPanelLeague .kf-schedule-player.is-winner .kf-schedule-player-name{color:#ffe1a0}
+#vipPanelLeague .kf-schedule-player.is-loser .kf-schedule-player-name{opacity:.7}
+#vipPanelLeague .kf-schedule-player-result{font-size:10px;color:#b7dbb7;font-weight:800;line-height:1.2}
+#vipPanelLeague .kf-schedule-player-result.is-loss{color:#d5a3a7}
+#vipPanelLeague .kf-schedule-result{display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;margin:-2px 0 12px;padding:11px 8px;border-radius:12px;border:1px solid rgba(241,192,109,.3);background:rgba(221,176,94,.09);text-align:center}
+#vipPanelLeague .kf-schedule-result.is-draw{border-color:rgba(185,195,217,.26);background:rgba(152,159,179,.08)}
+#vipPanelLeague .kf-schedule-result-score{font-size:23px;font-weight:900;color:#ffe1a0;line-height:1.1;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;letter-spacing:.05em}
+#vipPanelLeague .kf-schedule-result.is-draw .kf-schedule-result-score{color:#d9dfe8}
+#vipPanelLeague .kf-schedule-result-caption{color:#e7dbd0;font-size:11px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+#vipPanelLeague .kf-schedule-header{display:flex;flex-wrap:wrap;gap:9px;align-items:center;justify-content:space-between}
+#vipPanelLeague .kf-schedule-refresh{font:inherit;font-size:11px;font-weight:800;color:#ffe3a6;min-height:35px;border-radius:10px;padding:7px 10px;border:1px solid rgba(236,188,104,.53);background:rgba(219,159,77,.10);cursor:pointer}
+#vipPanelLeague .kf-schedule-refresh:disabled{opacity:.55;cursor:wait}
+#vipPanelLeague .kf-schedule-refresh:focus-visible{outline:2px solid #ffe4a3;outline-offset:2px}
+#vipPanelLeague .kf-schedule-refresh-note{font-size:11px;color:#a8dabc;min-height:15px;line-height:1.3}
+#vipPanelLeague .kf-schedule-refresh-note.is-error{color:#f4b4ba}
+
 `;
     document.head.appendChild(leagueCtaStyle);
   }
@@ -353,6 +384,191 @@
     if (document.hidden) stopLeagueCountdowns();
     else if (!panel.hidden) startLeagueCountdowns();
   });
+
+  function updateLeagueScores(group) {
+    const table=availability.querySelector('.kf-league-standings');
+    if (!table || !Array.isArray(group.standings)) return;
+    const oldRows=new Map(Array.from(table.querySelectorAll('tr[data-kf-league-player]'),row=>[row.dataset.kfLeaguePlayer,row]));
+    for (const standing of group.standings) {
+      const row=oldRows.get(String(standing.player));
+      if (!row) continue;
+      if (row.cells[0]) row.cells[0].textContent=standing.place;
+      const score=row.querySelector('.kf-league-score');
+      if (score) score.textContent=standing.points+label(' pts',' امتیاز');
+      table.append(row);
+    }
+  }
+  function renderLeagueSchedule(group) {
+    stopLeagueCountdowns();
+      const scheduleWrap=document.createElement('section');
+      scheduleWrap.className='kf-schedule';
+      const scheduleHeader=document.createElement('div');
+      scheduleHeader.className='kf-schedule-header';
+      const scheduleTitle=document.createElement('h3');
+      scheduleTitle.className='kf-schedule-title';
+      scheduleTitle.textContent=label('♛  Match schedule','♛  برنامهٔ مسابقات');
+      const scheduleRefresh=document.createElement('button');
+      scheduleRefresh.type='button';
+      scheduleRefresh.className='kf-schedule-refresh';
+      scheduleRefresh.textContent=label('↻ Refresh results','↻ رفرش نتایج');
+      const scheduleFeedback=document.createElement('span');
+      scheduleFeedback.className='kf-schedule-refresh-note';
+      scheduleFeedback.setAttribute('role','status');
+      scheduleRefresh.onclick=async()=>{
+        scheduleRefresh.disabled=true;
+        scheduleRefresh.textContent=label('Refreshing…','در حال دریافت…');
+        scheduleFeedback.textContent='';
+        scheduleFeedback.classList.remove('is-error');
+        try {
+          const reply=await sb.rpc('kf_league_board');
+          if(reply.error || !reply.data || reply.data.group_id!==group.group_id) throw reply.error||new Error('Invalid league board');
+          if(panel.hidden || !scheduleWrap.isConnected) return;
+          updateLeagueScores(reply.data);
+          renderLeagueSchedule(reply.data);
+        } catch(_) {
+          scheduleFeedback.textContent=label('Could not refresh results.','دریافت نتایج ناموفق بود.');
+          scheduleFeedback.classList.add('is-error');
+        } finally {
+          if(scheduleRefresh.isConnected) {
+            scheduleRefresh.disabled=false;
+            scheduleRefresh.textContent=label('↻ Refresh results','↻ رفرش نتایج');
+          }
+        }
+      };
+      scheduleHeader.append(scheduleTitle,scheduleRefresh);
+      scheduleWrap.append(scheduleHeader,scheduleFeedback);
+      const modeLabels={
+        classic:label('Classic 5+0','عادی ۵+۰'),
+        roulette:label('Roulette','رولت'),
+        bloodblade:label('Blood Tributes','قربانی خون')
+      };
+      const stateLabels={
+        scheduled:label('● Scheduled','● زمان‌بندی‌شده'),
+        playing:label('● Live','● در حال بازی'),
+        draw:label('Draw','مساوی'),
+        cancelled:label('Cancelled','لغوشده'),
+        won:label('Finished','تمام‌شده')
+      };
+      const matchDateFmt=new Intl.DateTimeFormat(window.kfGetLanguage?.()==='fa'?'fa-IR':'en-GB',{
+        day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
+      });
+      for (let day=1;day<=group.round;day++) {
+        const games=(group.matches||[]).filter(m=>m.day===day);
+        const section=document.createElement('details');
+        section.className='kf-schedule-day';
+        section.open=day===group.round;
+        const summary=document.createElement('summary');
+        summary.textContent=label('Day ','روز ')+day.toLocaleString(window.kfGetLanguage?.()==='fa'?'fa-IR':'en-US');
+        const chevron=document.createElement('span');
+        chevron.className='kf-schedule-chevron';
+        chevron.textContent='▾';
+        summary.append(chevron);
+        section.append(summary);
+        const body=document.createElement('div');
+        body.className='kf-schedule-day-body';
+        if (!games.length) {
+          const empty=document.createElement('p');
+          empty.className='kf-schedule-empty';
+          empty.textContent=label('No matches have been scheduled for this day.','برای این روز مسابقه‌ای برنامه‌ریزی نشده است.');
+          body.append(empty);
+        }
+        if (games.length && !games.some(m=>m.host===currentUser?.id || m.guest===currentUser?.id)) {
+          const note=document.createElement('p');
+          note.className='kf-schedule-empty';
+          note.textContent=label('No match for you today · 0 points','امروز مسابقه‌ای نداری · صفر امتیاز');
+          body.append(note);
+        }
+        for (const m of games) {
+          const own=m.host===currentUser?.id || m.guest===currentUser?.id;
+          const card=document.createElement('article');
+          card.className='kf-schedule-match'+(own?' is-mine':'');
+          const head=document.createElement('div');
+          head.className='kf-schedule-match-head';
+          const status=document.createElement('span');
+          status.className='kf-schedule-status'+(m.state==='playing'?' is-live':(m.state==='scheduled'?'':' is-ended'));
+          status.textContent=stateLabels[m.state]||m.state||label('Match','مسابقه');
+          const countdown=document.createElement('span');
+          countdown.className='kf-schedule-countdown';
+          if (m.state==='scheduled' && Number.isFinite(Date.parse(m.starts))) {
+            countdown.dataset.leagueStart=String(Date.parse(m.starts));
+            countdown.textContent=label('Calculating…','در حال محاسبه…');
+          } else {
+            countdown.textContent=m.state==='playing'?label('Game is live','بازی در جریان است'):label('Match concluded','مسابقه پایان یافته');
+          }
+          head.append(status,countdown);
+          const versus=document.createElement('div');
+          versus.className='kf-schedule-versus';
+          const winnerId=m.state==='won' && (m.winner===m.host || m.winner===m.guest) ? m.winner : null;
+          const makePlayer=(name,isMine,playerId)=>{
+            const player=document.createElement('div');
+            player.className='kf-schedule-player'+(winnerId===playerId?' is-winner':(winnerId && playerId!==winnerId?' is-loser':''));
+            const avatar=document.createElement('span');
+            avatar.className='kf-schedule-avatar';
+            avatar.textContent='♚';
+            const title=document.createElement('strong');
+            title.className='kf-schedule-player-name';
+            title.textContent=name||label('Player','بازیکن');
+            player.append(avatar,title);
+            if (winnerId) {
+              const resultMarker=document.createElement('span');
+              resultMarker.className='kf-schedule-player-result'+(playerId!==winnerId?' is-loss':'');
+              resultMarker.textContent=playerId===winnerId?label('Winner','برنده'):label('Lost','بازنده');
+              player.append(resultMarker);
+            }
+            if (isMine) {
+              const you=document.createElement('span');
+              you.className='kf-schedule-you';
+              you.textContent=label('YOU','شما');
+              player.append(you);
+            }
+            return player;
+          };
+          const vs=document.createElement('span');
+          vs.className='kf-schedule-vs';
+          vs.textContent='VS';
+          versus.append(makePlayer(m.home_name,m.host===currentUser?.id,m.host),vs,makePlayer(m.away_name,m.guest===currentUser?.id,m.guest));
+          const meta=document.createElement('div');
+          meta.className='kf-schedule-details';
+          const when=document.createElement('span');
+          when.className='kf-schedule-detail';
+          when.textContent='◷  '+(Number.isFinite(Date.parse(m.starts))?matchDateFmt.format(new Date(m.starts)):'—');
+          const gameMode=document.createElement('span');
+          gameMode.className='kf-schedule-detail';
+          gameMode.textContent='♟  '+(modeLabels[m.mode]||m.mode||'Classic');
+          meta.append(when,gameMode);
+          card.append(head,versus);
+          if (m.state==='won' || m.state==='draw') {
+            const result=document.createElement('div');
+            result.className='kf-schedule-result'+(m.state==='draw'?' is-draw':'');
+            const score=document.createElement('strong');
+            score.className='kf-schedule-result-score';
+            const explanation=document.createElement('span');
+            explanation.className='kf-schedule-result-caption';
+            if (m.state==='draw') {
+              score.textContent='½ – ½';
+              explanation.textContent=label('Draw · half a point each','مساوی · نیم امتیاز برای هر بازیکن');
+            } else if (winnerId) {
+              score.textContent=winnerId===m.host?'1 – 0':'0 – 1';
+              explanation.textContent=label('Winner: ','برنده: ')+(winnerId===m.host?m.home_name:m.away_name);
+            } else {
+              score.textContent='–';
+              explanation.textContent=label('Final result not available','نتیجهٔ نهایی مشخص نیست');
+            }
+            result.append(score,explanation);
+            card.append(result);
+          }
+          card.append(meta);
+          body.append(card);
+        }
+        section.append(body);
+        scheduleWrap.append(section);
+      }
+      const priorSchedule=availability.querySelector('.kf-schedule');
+      if (priorSchedule) priorSchedule.replaceWith(scheduleWrap);
+      else availability.append(scheduleWrap);
+      startLeagueCountdowns();
+  
+  }
   function renderWindows(group) {
     stopLeagueCountdowns();
     availability.replaceChildren();
@@ -402,118 +618,7 @@
       }
     }
     availability.append(table);
-    const scheduleWrap=document.createElement('section');
-    scheduleWrap.className='kf-schedule';
-    const scheduleTitle=document.createElement('h3');
-    scheduleTitle.className='kf-schedule-title';
-    scheduleTitle.textContent=label('♛  Match schedule','♛  برنامهٔ مسابقات');
-    scheduleWrap.append(scheduleTitle);
-    const modeLabels={
-      classic:label('Classic 5+0','عادی ۵+۰'),
-      roulette:label('Roulette','رولت'),
-      bloodblade:label('Blood Tributes','قربانی خون')
-    };
-    const stateLabels={
-      scheduled:label('● Scheduled','● زمان‌بندی‌شده'),
-      playing:label('● Live','● در حال بازی'),
-      draw:label('Draw','مساوی'),
-      cancelled:label('Cancelled','لغوشده'),
-      won:label('Finished','تمام‌شده')
-    };
-    const matchDateFmt=new Intl.DateTimeFormat(window.kfGetLanguage?.()==='fa'?'fa-IR':'en-GB',{
-      day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'
-    });
-    for (let day=1;day<=group.round;day++) {
-      const games=(group.matches||[]).filter(m=>m.day===day);
-      const section=document.createElement('details');
-      section.className='kf-schedule-day';
-      section.open=day===group.round;
-      const summary=document.createElement('summary');
-      summary.textContent=label('Day ','روز ')+day.toLocaleString(window.kfGetLanguage?.()==='fa'?'fa-IR':'en-US');
-      const chevron=document.createElement('span');
-      chevron.className='kf-schedule-chevron';
-      chevron.textContent='▾';
-      summary.append(chevron);
-      section.append(summary);
-      const body=document.createElement('div');
-      body.className='kf-schedule-day-body';
-      if (!games.length) {
-        const empty=document.createElement('p');
-        empty.className='kf-schedule-empty';
-        empty.textContent=label('No matches have been scheduled for this day.','برای این روز مسابقه‌ای برنامه‌ریزی نشده است.');
-        body.append(empty);
-      }
-      if (games.length && !games.some(m=>m.host===currentUser?.id || m.guest===currentUser?.id)) {
-        const note=document.createElement('p');
-        note.className='kf-schedule-empty';
-        note.textContent=label('No match for you today · 0 points','امروز مسابقه‌ای نداری · صفر امتیاز');
-        body.append(note);
-      }
-      for (const m of games) {
-        const own=m.host===currentUser?.id || m.guest===currentUser?.id;
-        const card=document.createElement('article');
-        card.className='kf-schedule-match'+(own?' is-mine':'');
-        const head=document.createElement('div');
-        head.className='kf-schedule-match-head';
-        const status=document.createElement('span');
-        status.className='kf-schedule-status'+(m.state==='playing'?' is-live':(m.state==='scheduled'?'':' is-ended'));
-        status.textContent=stateLabels[m.state]||m.state||label('Match','مسابقه');
-        const countdown=document.createElement('span');
-        countdown.className='kf-schedule-countdown';
-        if (m.state==='scheduled' && Number.isFinite(Date.parse(m.starts))) {
-          countdown.dataset.leagueStart=String(Date.parse(m.starts));
-          countdown.textContent=label('Calculating…','در حال محاسبه…');
-        } else {
-          countdown.textContent=m.state==='playing'?label('Game is live','بازی در جریان است'):label('Match concluded','مسابقه پایان یافته');
-        }
-        head.append(status,countdown);
-        const versus=document.createElement('div');
-        versus.className='kf-schedule-versus';
-        const makePlayer=(name,isMine)=>{
-          const player=document.createElement('div');
-          player.className='kf-schedule-player';
-          const avatar=document.createElement('span');
-          avatar.className='kf-schedule-avatar';
-          avatar.textContent='♚';
-          const title=document.createElement('strong');
-          title.className='kf-schedule-player-name';
-          title.textContent=name||label('Player','بازیکن');
-          player.append(avatar,title);
-          if (isMine) {
-            const you=document.createElement('span');
-            you.className='kf-schedule-you';
-            you.textContent=label('YOU','شما');
-            player.append(you);
-          }
-          return player;
-        };
-        const vs=document.createElement('span');
-        vs.className='kf-schedule-vs';
-        vs.textContent='VS';
-        versus.append(makePlayer(m.home_name,m.host===currentUser?.id),vs,makePlayer(m.away_name,m.guest===currentUser?.id));
-        const meta=document.createElement('div');
-        meta.className='kf-schedule-details';
-        const when=document.createElement('span');
-        when.className='kf-schedule-detail';
-        when.textContent='◷  '+(Number.isFinite(Date.parse(m.starts))?matchDateFmt.format(new Date(m.starts)):'—');
-        const gameMode=document.createElement('span');
-        gameMode.className='kf-schedule-detail';
-        gameMode.textContent='♟  '+(modeLabels[m.mode]||m.mode||'Classic');
-        meta.append(when,gameMode);
-        if(m.state==='won') {
-          const victor=document.createElement('span');
-          victor.className='kf-schedule-detail';
-          victor.textContent=label('Winner: ','برنده: ')+(m.winner===m.host?m.home_name:m.away_name);
-          meta.append(victor);
-        }
-        card.append(head,versus,meta);
-        body.append(card);
-      }
-      section.append(body);
-      scheduleWrap.append(section);
-    }
-    availability.append(scheduleWrap);
-    startLeagueCountdowns();
+    renderLeagueSchedule(group);
 
     if (!group.can_edit) return;
     const studio = document.createElement('div');
