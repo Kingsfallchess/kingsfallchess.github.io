@@ -1,15 +1,16 @@
+-- Apply retention.sql before this migration.
 alter table kf_league.groups add column round_no int not null default 0,
  add column finished boolean not null default false, add column ticket uuid unique, add column retry_at timestamptz;
 alter table kf_league.members add column mode text not null default 'classic', add column style jsonb not null default '{}',
  add column lot uuid not null default gen_random_uuid();
 create table kf_league.fixtures(
- id uuid primary key default gen_random_uuid(), gid uuid not null references kf_league.groups,
+ id uuid primary key default gen_random_uuid(), gid uuid not null references kf_league.groups on delete cascade,
  day int not null check(day between 1 and 18), host uuid not null, guest uuid not null check(host<>guest),
  starts timestamptz not null, mode text not null, style jsonb not null,
  state text not null default 'scheduled', winner uuid, unique(gid,host,guest)
 );
 create index fixtures_start on kf_league.fixtures(starts) where state='scheduled';
-create table kf_league.final_table(gid uuid not null, player uuid not null, name text, points numeric, place int, next_level int, primary key(gid,player));
+create table kf_league.final_table(gid uuid not null references kf_league.groups on delete cascade, player uuid not null, name text, points numeric, place int, next_level int, primary key(gid,player));
 create function kf_league.ranks(group_key uuid) returns table(player uuid,name text,points numeric,place bigint)
 language sql stable set search_path='' as $$
  with scores as (
@@ -81,7 +82,7 @@ begin
  insert into kf_league.final_table select g.id,r.player,r.name,r.points,r.place,greatest(1,g.level+case when r.place<=5 then 1 else -1 end) from kf_league.ranks(g.id) r;
  insert into kf_league.levels(user_id,level) select player,next_level from kf_league.final_table where gid=g.id
  on conflict(user_id) do update set level=excluded.level;
- update kf_league.groups set finished=true where id=g.id;
+ update kf_league.groups set finished=true,finished_at=clock_timestamp() where id=g.id;
  end if;
  end loop;
  for f in select * from kf_league.fixtures where state='scheduled' and starts<=now() order by starts for update skip locked loop
