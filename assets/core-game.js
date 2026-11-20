@@ -2678,43 +2678,34 @@ function enterFullscreenGame(row){
 }
 
 var kfFullscreenStatsRequestId = 0;
+function fullscreenProfileStats(stats){
+  var level = stats && stats.league_level;
+  var shield = "";
+  if(Number.isSafeInteger(level) && level > 0){
+    var caption = (window.kfGetLanguage?.() === "fa" ? "سطح لیگ " : "League level ") + level;
+    shield = '<svg width="25" height="28" viewBox="0 0 48 56" fill="none" role="img" aria-label="' + caption + '" style="flex:none;vertical-align:middle"><title>' + caption + '</title><path d="M3 5 Q13 6 24 2 Q35 6 45 5 V28 Q44 42 24 53 Q4 42 3 28Z" fill="#351521" stroke="#e8c17d" stroke-width="2"/><path d="M7 9 Q16 10 24 6 Q32 10 41 9 V28 Q40 39 24 48 Q8 39 7 28Z" stroke="#996d48"/><text x="24" y="32" text-anchor="middle" direction="ltr" font-family="Arial,sans-serif" font-size="' + (String(level).length > 2 ? 14 : 22) + '" font-weight="700" fill="#ffe4ae">' + level + '</text></svg>';
+  }
+  return '<span class="gfs-stat">🏆 ' + fmtStat(stats?.tournament_wins || 0) + '</span><span class="gfs-stat" title="Crowns">👑 ' + fmtStat(stats?.wins || 0) + '</span>' + shield;
+}
 async function renderFullscreenStats(){
   if(!currentUser || !onlineGame || !sb) return;
   var requestId = ++kfFullscreenStatsRequestId;
-  var gameSnapshot = onlineGame;
+  var gameId = onlineGame.id;
   var userId = currentUser.id;
-  var myIsWhite = (gameSnapshot.white_id === userId);
-  var oppId = myIsWhite ? gameSnapshot.black_id : gameSnapshot.white_id;
-  var myWins = 0, myTrophyWins = 0, oppWins = 0, oppTrophyWins = 0;
-  function isCurrent(){
-    return requestId === kfFullscreenStatsRequestId &&
-      !!onlineGame && onlineGame.id === gameSnapshot.id &&
-      !!currentUser && currentUser.id === userId &&
-      document.body.classList.contains("game-focus");
+  var oppId = onlineGame.white_id === userId ? onlineGame.black_id : onlineGame.white_id;
+  var rows;
+  try {
+    var result = await sb.rpc("kf_game_profile_stats", {game_id:gameId});
+    if(result.error) throw result.error;
+    rows = result.data;
+  } catch(error){
+    console.warn("Could not load game profile stats:",error);
+    var fallback = await sb.from("kf_player_stats").select("user_id,wins,tournament_wins").in("user_id",[userId,oppId].filter(Boolean));
+    rows = fallback.data;
   }
-  try{
-    // Read canonical stats from kf_player_stats, not stale/missing per-game fields.
-    var myStatsRes = await sb.from("kf_player_stats").select("wins,tournament_wins").eq("user_id", userId).maybeSingle();
-    if(myStatsRes.data){
-      myWins = Number(myStatsRes.data.wins || 0);
-      myTrophyWins = Number(myStatsRes.data.tournament_wins || 0);
-    }
-  } catch(e){ console.warn("Could not load own profile stats:", e); }
-  if(!isCurrent()) return;
-
-  if(oppId){
-    try{
-      var oppStatsRes = await sb.from("kf_player_stats").select("wins,tournament_wins").eq("user_id", oppId).maybeSingle();
-      if(oppStatsRes.data){
-        oppWins = Number(oppStatsRes.data.wins || 0);
-        oppTrophyWins = Number(oppStatsRes.data.tournament_wins || 0);
-      }
-    } catch(e){ console.warn("Could not load opponent profile stats:", e); }
-  }
-  // Only the latest request for the visible game may update either stats panel.
-  if(!isCurrent()) return;
-  $("gfsBotStats").innerHTML = '<span class="gfs-stat">🏆 ' + fmtStat(myTrophyWins) + '</span><span class="gfs-stat" title="Crowns">👑 ' + fmtStat(myWins) + '</span>';
-  $("gfsTopStats").innerHTML = '<span class="gfs-stat">🏆 ' + fmtStat(oppTrophyWins) + '</span><span class="gfs-stat" title="Crowns">👑 ' + fmtStat(oppWins) + '</span>';
+  if(requestId !== kfFullscreenStatsRequestId || onlineGame?.id !== gameId || currentUser?.id !== userId || !document.body.classList.contains("game-focus")) return;
+  $("gfsBotStats").innerHTML = fullscreenProfileStats(rows?.find(row => row.user_id === userId));
+  $("gfsTopStats").innerHTML = fullscreenProfileStats(rows?.find(row => row.user_id === oppId));
 }
 
 function exitFullscreenGame(){
