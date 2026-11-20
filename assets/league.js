@@ -136,6 +136,16 @@
 #vipPanelLeague .kf-league-standings .kf-league-score{width:44px;font-size:10px}
 #vipPanelLeague .kf-league-available-chip{font-size:9px;padding:4px}
 }
+
+/* Manual refresh: no interval-based standings polling. */
+#vipPanelLeague .kf-league-standings-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:25px 0 10px}
+#vipPanelLeague .kf-league-standings-header h3{margin:0!important}
+#vipPanelLeague .kf-league-refresh-hours{display:inline-flex;align-items:center;justify-content:center;min-height:37px;padding:7px 13px;border:1px solid rgba(239,195,111,.65);background:linear-gradient(145deg,rgba(92,47,32,.86),rgba(49,16,24,.95));color:#ffe4a3;border-radius:10px;font:inherit;font-size:12px;font-weight:750;cursor:pointer;transition:filter .15s ease}
+#vipPanelLeague .kf-league-refresh-hours:hover:not(:disabled){filter:brightness(1.17)}
+#vipPanelLeague .kf-league-refresh-hours:focus-visible{outline:2px solid #ffe4a3;outline-offset:2px}
+#vipPanelLeague .kf-league-refresh-hours:disabled{opacity:.65;cursor:wait}
+#vipPanelLeague .kf-league-refresh-status{min-height:14px;margin:0 0 7px;color:#b7d4ad;font-size:11px}
+#vipPanelLeague .kf-league-refresh-status.is-error{color:#ffb4b1}
 `;
     document.head.appendChild(leagueCtaStyle);
   }
@@ -192,35 +202,66 @@
     cell.append(wrap);
   }
   let leagueBoardRefreshInFlight = false;
-  async function syncLeagueMemberHours() {
-    if(panel.hidden || document.hidden || leagueBoardRefreshInFlight) return;
+  async function syncLeagueMemberHours(button, status) {
+    if (panel.hidden || leagueBoardRefreshInFlight) return;
     const rows = availability.querySelectorAll('tr[data-kf-league-player]');
     if (!rows.length) return;
     leagueBoardRefreshInFlight = true;
     const user = currentUser?.id;
+    if (button) {
+      button.disabled = true;
+      button.textContent = label('Refreshing…', 'در حال به‌روزرسانی…');
+    }
+    if (status) {
+      status.textContent = '';
+      status.classList.remove('is-error');
+    }
     try {
       const result = await sb.rpc('kf_league_board');
-      if (result.error || !result.data || currentUser?.id !== user || panel.hidden) return;
+      if (result.error || !result.data) throw result.error || new Error('No league board');
+      if (currentUser?.id !== user || panel.hidden) return;
       const groups = result.data.availability_by_player || {};
       for (const row of rows) {
         if (!row.isConnected) continue;
         const timeCell = row.querySelector('.kf-league-availability');
-        if(timeCell) renderMemberHours(timeCell,groups[row.dataset.kfLeaguePlayer]);
+        if (timeCell) renderMemberHours(timeCell, groups[row.dataset.kfLeaguePlayer]);
       }
+      if (status?.isConnected) status.textContent = label('Times updated.', 'ساعت‌ها به‌روز شدند.');
     } catch (_) {
-      // Keep the last rendered standings if connection is unavailable.
-    } finally { leagueBoardRefreshInFlight = false; }
+      if (status?.isConnected) {
+        status.textContent = label('Refresh failed. Try again.', 'به‌روزرسانی انجام نشد. دوباره تلاش کن.');
+        status.classList.add('is-error');
+      }
+    } finally {
+      leagueBoardRefreshInFlight = false;
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.textContent = label('↻ Refresh times', '↻ رفرش ساعت‌ها');
+      }
+    }
   }
-  setInterval(syncLeagueMemberHours,30000);
-  document.addEventListener('visibilitychange',() => {
-    if(!document.hidden) syncLeagueMemberHours();
-  });
   function renderWindows(group) {
     availability.replaceChildren();
     const heading = text => {
       const title = document.createElement('h3'); title.textContent = text; availability.append(title);
     };
-    heading(label('Group standings','جدول گروه'));
+    const standingsHead = document.createElement('div');
+    standingsHead.className = 'kf-league-standings-header';
+    const standingsTitle = document.createElement('h3');
+    standingsTitle.textContent = label('Group standings','جدول گروه');
+    standingsHead.append(standingsTitle);
+    const refreshStatus = document.createElement('p');
+    refreshStatus.className = 'kf-league-refresh-status';
+    refreshStatus.setAttribute('role','status');
+    if (!group.finished) {
+      const refreshButton = document.createElement('button');
+      refreshButton.type = 'button';
+      refreshButton.className = 'kf-league-refresh-hours';
+      refreshButton.textContent = label('↻ Refresh times', '↻ رفرش ساعت‌ها');
+      refreshButton.onclick = () => syncLeagueMemberHours(refreshButton, refreshStatus);
+      standingsHead.append(refreshButton);
+    }
+    availability.append(standingsHead,refreshStatus);
     const table = document.createElement('table');
     table.className = 'kf-league-standings';
     table.dir = 'ltr';
@@ -595,7 +636,7 @@
           const cell = row.querySelector('.kf-league-availability');
           if (cell) renderMemberHours(cell,windows);
         }
-        syncLeagueMemberHours();
+        // Only the current player's row updates locally after saving; other rows refresh on demand.
       } catch (error) {
         status.textContent = label('Could not save. Check the deadline and try again.','ذخیره نشد. مهلت ثبت را بررسی کن و دوباره تلاش کن.');
         status.classList.add('bad');
