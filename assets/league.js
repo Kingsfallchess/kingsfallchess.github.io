@@ -3,7 +3,7 @@
   const message = document.createElement('p');
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'vip-section-tab';
+  button.className = 'kf-league-cta';
   message.setAttribute('role', 'status');
   panel.replaceChildren(message, button);
   const alerts = document.createElement('a');
@@ -117,6 +117,7 @@
     alertStatus.textContent = '';
     button.disabled = true;
     button.hidden = true;
+    button.classList.remove('is-secondary');
     message.textContent = label('Loading league…', 'در حال دریافت وضعیت لیگ…');
     try {
       const { data, error } = await sb.auth.getSession();
@@ -152,6 +153,7 @@
           return;
         }
         const { joined, level, position } = reply.data;
+        button.classList.toggle('is-secondary', joined);
         if(joined) monitorLeague();
         panel.dir = window.kfGetLanguage?.() === 'fa' ? 'rtl' : 'ltr';
         message.textContent = joined
