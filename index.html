@@ -1752,6 +1752,19 @@ html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
 @media(prefers-reduced-motion:reduce){
   #vipPanelLeague > button{transition:none}
 }
+
+/* User-specific league level, shown within the registration button. */
+#vipPanelLeague > button{width:min(100%,360px);flex-wrap:wrap}
+#vipPanelLeague > button .kf-league-level{
+  display:inline-flex;align-items:center;justify-content:center;flex:none;
+  min-height:29px;padding:4px 10px;border-radius:9px;box-sizing:border-box;
+  border:1px solid rgba(28,50,71,.22);background:rgba(30,51,71,.13);
+  color:#172a41;font-size:12px;font-weight:900;line-height:1.2;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+#vipPanelLeague > button.is-secondary .kf-league-level{
+  border-color:rgba(243,217,154,.45);background:rgba(243,217,154,.12);color:#f3d99a;
+}
 </style>
 </head>
 <body class="kf-home-active">
@@ -2459,7 +2472,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=leaguecta3","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=leaguelevels1","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
