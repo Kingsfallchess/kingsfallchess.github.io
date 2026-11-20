@@ -111,7 +111,18 @@ function vipInit(){
   vipRenderStudio();
 }
 
+let leagueModule;
 function vipSelectSection(section){
+  if (section === "league" && !leagueModule) {
+    leagueModule = document.createElement("script");
+    leagueModule.src = "assets/league.js";
+    leagueModule.onerror = () => {
+      leagueModule.remove();
+      leagueModule = null;
+      document.getElementById("vipPanelLeague").textContent = "باز کردن لیگ ممکن نشد. دوباره روی لیگ بزن.";
+    };
+    document.head.appendChild(leagueModule);
+  }
   if(!["league","tournament","themes"].includes(section))section="themes";
   ["league","tournament","themes"].forEach(function(name){
     var tab=document.querySelector('[data-vip-section="'+name+'"]');
