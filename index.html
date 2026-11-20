@@ -1715,7 +1715,7 @@ html.kf-native-app.kf-fa #pageHome .board-panel,
 html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
 
 /* Kingsfall league registration call-to-action — scoped to the league panel. */
-#vipPanelLeague > .kf-league-cta{
+#vipPanelLeague > button{
   position:relative;display:inline-flex;align-items:center;justify-content:center;gap:11px;
   width:min(100%,290px);min-height:58px;margin:18px 0 8px;padding:14px 22px;
   border:1.5px solid #ffdf91;border-radius:16px;box-sizing:border-box;
@@ -1726,31 +1726,31 @@ html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
   transition:transform .18s ease,box-shadow .18s ease,filter .18s ease;
   -webkit-tap-highlight-color:transparent;
 }
-#vipPanelLeague > .kf-league-cta::before{
+#vipPanelLeague > button::before{
   content:"♛";font-size:24px;line-height:1;flex:none;
   color:#293b4f;text-shadow:0 1px 0 rgba(255,255,255,.35);
 }
-#vipPanelLeague > .kf-league-cta:hover:not(:disabled){
+#vipPanelLeague > button:hover:not(:disabled){
   transform:translateY(-2px);filter:brightness(1.05);
   box-shadow:0 14px 30px rgba(194,133,39,.34),0 0 15px rgba(243,200,106,.12),inset 0 1px 0 rgba(255,255,255,.8);
 }
-#vipPanelLeague > .kf-league-cta:active:not(:disabled){
+#vipPanelLeague > button:active:not(:disabled){
   transform:translateY(1px);box-shadow:0 4px 10px rgba(194,133,39,.23),inset 0 2px 5px rgba(95,54,12,.18);
 }
-#vipPanelLeague > .kf-league-cta:focus-visible{outline:3px solid #fff2b2;outline-offset:4px}
-#vipPanelLeague > .kf-league-cta.is-secondary{
+#vipPanelLeague > button:focus-visible{outline:3px solid #fff2b2;outline-offset:4px}
+#vipPanelLeague > button.is-secondary{
   background:linear-gradient(145deg,#203954,#10273e);
   color:#f3d99a;border-color:#bd9656;
   box-shadow:0 6px 17px rgba(0,0,0,.17),inset 0 1px 0 rgba(255,255,255,.08);
 }
-#vipPanelLeague > .kf-league-cta.is-secondary::before{content:"↩";font-size:22px;color:#efd18a}
-#vipPanelLeague > .kf-league-cta[hidden]{display:none!important}
-#vipPanelLeague > .kf-league-cta:disabled{opacity:.55;cursor:wait;transform:none}
+#vipPanelLeague > button.is-secondary::before{content:"↩";font-size:22px;color:#efd18a}
+#vipPanelLeague > button[hidden]{display:none!important}
+#vipPanelLeague > button:disabled{opacity:.55;cursor:wait;transform:none}
 @media(max-width:520px){
-  #vipPanelLeague > .kf-league-cta{width:100%;min-height:60px;font-size:16px}
+  #vipPanelLeague > button{width:100%;min-height:60px;font-size:16px}
 }
 @media(prefers-reduced-motion:reduce){
-  #vipPanelLeague > .kf-league-cta{transition:none}
+  #vipPanelLeague > button{transition:none}
 }
 </style>
 </head>
@@ -2459,7 +2459,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=leaguecta3","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
