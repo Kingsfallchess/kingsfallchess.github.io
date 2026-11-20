@@ -126,6 +126,14 @@
 #vipPanelLeague .kf-league-available-title{display:block;color:#b8a0a5;font-size:10px;margin-bottom:5px;line-height:1.3}
 #vipPanelLeague .kf-league-available-items{display:flex;flex-wrap:wrap;gap:5px}
 #vipPanelLeague .kf-league-available-chip{display:inline-block;color:#ffe3a6;border:1px solid rgba(236,185,99,.37);background:rgba(211,151,68,.12);border-radius:7px;padding:4px 6px;font-size:10px;line-height:1.25;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
+
+/* Green means this opponent's selected range overlaps the current player's own availability. */
+#vipPanelLeague .kf-league-available-chip.is-match{
+  color:#ddffe8;
+  background:linear-gradient(135deg,rgba(34,130,76,.37),rgba(39,106,69,.28));
+  border-color:rgba(114,236,152,.82);
+  box-shadow:inset 0 0 0 1px rgba(141,255,171,.12),0 0 10px rgba(75,188,113,.16);
+}
 #vipPanelLeague .kf-league-no-hours{font-size:11px;color:#b3a0a3}
 #vipPanelLeague .kf-league-standing-level{font-size:11px;white-space:nowrap}
 @media(max-width:480px){
@@ -173,7 +181,24 @@
   const availability = document.createElement('div');
   panel.append(availability);
   const leagueHourLocale = () => window.kfGetLanguage?.() === 'fa' ? 'fa-IR' : 'en-GB';
-  function renderMemberHours(cell, windows) {
+  function leagueWindowsOverlap(a,b) {
+    const aStart=Date.parse(a?.start),aEnd=Date.parse(a?.end);
+    const bStart=Date.parse(b?.start),bEnd=Date.parse(b?.end);
+    return [aStart,aEnd,bStart,bEnd].every(Number.isFinite) &&
+      aEnd>aStart && bEnd>bStart && aStart<bEnd && bStart<aEnd;
+  }
+  let displayedLeagueWindows = {};
+  let ownLeagueWindows = [];
+  function drawLeagueHourRows(rows) {
+    for (const row of rows) {
+      if (!row.isConnected) continue;
+      const cell=row.querySelector('.kf-league-availability');
+      if (!cell) continue;
+      const id=row.dataset.kfLeaguePlayer;
+      renderMemberHours(cell,displayedLeagueWindows[id],ownLeagueWindows,id===currentUser?.id);
+    }
+  }
+  function renderMemberHours(cell, windows, myWindows, isOwnRow) {
     cell.replaceChildren();
     const title = document.createElement('span');
     title.className = 'kf-league-available-title';
@@ -196,6 +221,10 @@
       if(!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) continue;
       const chip = document.createElement('span');
       chip.className = 'kf-league-available-chip';
+      if (!isOwnRow && Array.isArray(myWindows) &&
+          myWindows.some(mine=>leagueWindowsOverlap(range,mine))) {
+        chip.classList.add('is-match');
+      }
       chip.textContent = formatter.format(start) + ' – ' + (start.toDateString() === end.toDateString() ? clock.format(end) : formatter.format(end));
       wrap.append(chip);
     }
@@ -220,12 +249,9 @@
       const result = await sb.rpc('kf_league_board');
       if (result.error || !result.data) throw result.error || new Error('No league board');
       if (currentUser?.id !== user || panel.hidden) return;
-      const groups = result.data.availability_by_player || {};
-      for (const row of rows) {
-        if (!row.isConnected) continue;
-        const timeCell = row.querySelector('.kf-league-availability');
-        if (timeCell) renderMemberHours(timeCell, groups[row.dataset.kfLeaguePlayer]);
-      }
+      displayedLeagueWindows = result.data.availability_by_player || {};
+      ownLeagueWindows = Array.isArray(result.data.windows) ? result.data.windows : [];
+      drawLeagueHourRows(rows);
       if (status?.isConnected) status.textContent = label('Times updated.', 'ساعت‌ها به‌روز شدند.');
     } catch (_) {
       if (status?.isConnected) {
@@ -242,6 +268,8 @@
   }
   function renderWindows(group) {
     availability.replaceChildren();
+    displayedLeagueWindows = group.availability_by_player || {};
+    ownLeagueWindows = Array.isArray(group.windows) ? group.windows : [];
     const heading = text => {
       const title = document.createElement('h3'); title.textContent = text; availability.append(title);
     };
@@ -282,7 +310,7 @@
       } else {
         const time = tr.insertCell();
         time.className = 'kf-league-availability';
-        renderMemberHours(time,group.availability_by_player?.[row.player]);
+        renderMemberHours(time,displayedLeagueWindows[row.player],ownLeagueWindows,row.player===currentUser?.id);
       }
     }
     availability.append(table);
@@ -630,13 +658,10 @@
         if (result.error) throw result.error;
         status.textContent = label('Settings saved successfully.','تنظیمات با موفقیت ذخیره شد.');
         status.classList.add('ok');
-        const ownRow = availability.querySelectorAll('tr[data-kf-league-player]');
-        for (const row of ownRow) {
-          if (row.dataset.kfLeaguePlayer !== currentUser?.id) continue;
-          const cell = row.querySelector('.kf-league-availability');
-          if (cell) renderMemberHours(cell,windows);
-        }
-        // Only the current player's row updates locally after saving; other rows refresh on demand.
+        // Recalculate overlap locally after saving; no polling or extra network request.
+        ownLeagueWindows = windows;
+        displayedLeagueWindows = {...displayedLeagueWindows,[currentUser.id]:windows};
+        drawLeagueHourRows(availability.querySelectorAll('tr[data-kf-league-player]'));
       } catch (error) {
         status.textContent = label('Could not save. Check the deadline and try again.','ذخیره نشد. مهلت ثبت را بررسی کن و دوباره تلاش کن.');
         status.classList.add('bad');
