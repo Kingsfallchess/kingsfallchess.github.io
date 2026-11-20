@@ -115,7 +115,7 @@ let leagueModule;
 function loadLeagueModule(){
   if(leagueModule) return;
   leagueModule=document.createElement("script");
-  leagueModule.src="assets/league.js?v=league-manual-refresh1";
+  leagueModule.src="assets/league.js?v=overlap-green1";
   leagueModule.onerror=()=>{leagueModule.remove();leagueModule=null;};
   document.head.appendChild(leagueModule);
 }
