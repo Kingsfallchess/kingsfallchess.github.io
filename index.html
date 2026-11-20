@@ -1366,7 +1366,7 @@ body.game-focus #firstMoveDeadlineNormal{display:none!important}
 .kf-audit-offender{margin:10px 0;padding:10px 12px;border:1px solid rgba(255,151,94,.55);border-radius:10px;background:rgba(141,52,26,.16);font-size:13px;line-height:1.6;overflow-wrap:anywhere}.kf-audit-offender b{color:#ffcb8d}.kf-audit-offender small{display:block;color:#b8c4d6;font-size:11px}.kf-audit-replay-head>div{min-width:0}.kf-audit-replay-head .btn{flex-shrink:0}@media(max-width:420px){.kf-audit-replay{padding:8px}.kf-audit-replay-panel{padding:12px;max-height:calc(100dvh - 16px)}.kf-audit-replay-board{width:min(100%,330px)}.kf-audit-replay-controls{gap:5px}.kf-audit-replay-controls .btn{min-width:36px;padding:8px}}
 .kf-audit-replay-note{border-left:3px solid #dba559;padding-left:10px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 /* VIP section navigation */
-.vip-section-tabs{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:6px;margin:14px 0 18px;padding:5px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.2);direction:rtl}
+.vip-section-tabs{display:grid;grid-template-columns:1.5fr 1fr;gap:6px;margin:14px 0 18px;padding:5px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.2);direction:rtl}
 .vip-section-tab{min-width:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:clamp(11px,2.7vw,14px);font-weight:800;padding:12px 5px;cursor:pointer}
 .vip-section-tab.active{color:var(--gold2);background:var(--btn-bg);border-color:var(--gold);box-shadow:0 2px 12px rgba(0,0,0,.18)}
 .vip-section-tab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
@@ -1769,6 +1769,8 @@ html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
 }
 </style>
 <style>
+.league-bar {flex-direction:column}
+#vipPanelLeague:not([hidden]) {padding:clamp(12px,3vw,24px);border:1px solid var(--line2);border-radius:12px;background:var(--panel);min-width:0}
 #leagueBtn {
   position:relative; isolation:isolate; overflow:hidden; display:flex; align-items:center; gap:14px;
   width:100%; min-height:74px; padding:10px 18px; cursor:pointer;
@@ -1836,11 +1838,9 @@ html.kf-fa #leagueBtn .league-arrow::after {transform:rotate(-45deg)}
     <section class="vip-studio">
       <div class="vip-back-row"><button class="btn" id="vipBack" type="button">← Back</button></div>
       <nav class="vip-section-tabs" aria-label="VIP sections" role="tablist">
-        <button class="vip-section-tab" type="button" id="vipTabLeague" role="tab" aria-controls="vipPanelLeague" aria-selected="false" data-vip-section="league">لیگ</button>
         <button class="vip-section-tab" type="button" id="vipTabTournament" role="tab" aria-controls="vipPanelTournament" aria-selected="false" data-vip-section="tournament">تورنمنت اختصاصی</button>
         <button class="vip-section-tab active" type="button" id="vipTabThemes" role="tab" aria-controls="vipPanelThemes" aria-selected="true" data-vip-section="themes">تم‌ها</button>
       </nav>
-      <section class="vip-section-panel" id="vipPanelLeague" role="tabpanel" aria-labelledby="vipTabLeague" hidden><p class="vip-section-placeholder">بخش لیگ به‌زودی اضافه می‌شود.</p></section>
       <section class="vip-section-panel" id="vipPanelTournament" role="tabpanel" aria-labelledby="vipTabTournament" hidden><p class="vip-section-placeholder">بخش تورنمنت اختصاصی به‌زودی اضافه می‌شود.</p></section>
       <div class="vip-section-panel" id="vipPanelThemes" role="tabpanel" aria-labelledby="vipTabThemes">
       <h3>Exclusive chessboard themes</h3>
@@ -1887,7 +1887,7 @@ html.kf-fa #leagueBtn .league-arrow::after {transform:rotate(-45deg)}
   </div>
 
   <div class="league-bar">
-    <button id="leagueBtn" type="button" aria-controls="vipPanelLeague">
+    <button id="leagueBtn" type="button" aria-controls="vipPanelLeague" aria-expanded="false">
       <svg class="league-crest" aria-hidden="true" viewBox="0 0 48 56" fill="none">
         <path d="M3 5 Q13 6 24 2 Q35 6 45 5 V28 Q44 42 24 53 Q4 42 3 28Z" fill="#351521" stroke="#e8c17d" stroke-width="2"/>
         <path d="M7 9 Q16 10 24 6 Q32 10 41 9 V28 Q40 39 24 48 Q8 39 7 28Z" stroke="#996d48"/>
@@ -1896,6 +1896,7 @@ html.kf-fa #leagueBtn .league-arrow::after {transform:rotate(-45deg)}
       <span class="league-name" lang="en">League</span>
       <span class="league-arrow" aria-hidden="true"></span>
     </button>
+    <section id="vipPanelLeague" aria-labelledby="leagueBtn" hidden></section>
   </div>
 
   <div class="roulette-bar">
@@ -2511,7 +2512,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=home-league1","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=home-league2","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
