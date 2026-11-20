@@ -1,5 +1,51 @@
 (() => {
   const panel = document.getElementById('vipPanelLeague');
+  // Style the registration CTA even if an older index.html remains cached in Android WebView.
+  // The same scoped style in index.html covers clients that cache the older league.js.
+  if (!document.getElementById('kfLeagueCtaStyle')) {
+    const leagueCtaStyle = document.createElement('style');
+    leagueCtaStyle.id = 'kfLeagueCtaStyle';
+    leagueCtaStyle.textContent = `/* Kingsfall league registration call-to-action — scoped to the league panel. */
+#vipPanelLeague > button{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;gap:11px;
+  width:min(100%,290px);min-height:58px;margin:18px 0 8px;padding:14px 22px;
+  border:1.5px solid #ffdf91;border-radius:16px;box-sizing:border-box;
+  background:linear-gradient(135deg,#fff0b8 0%,#f0cb75 43%,#c8953f 100%);
+  color:#172a41;font:inherit;font-size:16px;font-weight:850;line-height:1.3;
+  text-align:center;letter-spacing:.2px;cursor:pointer;
+  box-shadow:0 10px 24px rgba(194,133,39,.24),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -2px 0 rgba(105,66,19,.26);
+  transition:transform .18s ease,box-shadow .18s ease,filter .18s ease;
+  -webkit-tap-highlight-color:transparent;
+}
+#vipPanelLeague > button::before{
+  content:"♛";font-size:24px;line-height:1;flex:none;
+  color:#293b4f;text-shadow:0 1px 0 rgba(255,255,255,.35);
+}
+#vipPanelLeague > button:hover:not(:disabled){
+  transform:translateY(-2px);filter:brightness(1.05);
+  box-shadow:0 14px 30px rgba(194,133,39,.34),0 0 15px rgba(243,200,106,.12),inset 0 1px 0 rgba(255,255,255,.8);
+}
+#vipPanelLeague > button:active:not(:disabled){
+  transform:translateY(1px);box-shadow:0 4px 10px rgba(194,133,39,.23),inset 0 2px 5px rgba(95,54,12,.18);
+}
+#vipPanelLeague > button:focus-visible{outline:3px solid #fff2b2;outline-offset:4px}
+#vipPanelLeague > button.is-secondary{
+  background:linear-gradient(145deg,#203954,#10273e);
+  color:#f3d99a;border-color:#bd9656;
+  box-shadow:0 6px 17px rgba(0,0,0,.17),inset 0 1px 0 rgba(255,255,255,.08);
+}
+#vipPanelLeague > button.is-secondary::before{content:"↩";font-size:22px;color:#efd18a}
+#vipPanelLeague > button[hidden]{display:none!important}
+#vipPanelLeague > button:disabled{opacity:.55;cursor:wait;transform:none}
+@media(max-width:520px){
+  #vipPanelLeague > button{width:100%;min-height:60px;font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){
+  #vipPanelLeague > button{transition:none}
+}
+`;
+    document.head.appendChild(leagueCtaStyle);
+  }
   const message = document.createElement('p');
   const button = document.createElement('button');
   button.type = 'button';
