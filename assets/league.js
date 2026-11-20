@@ -234,11 +234,10 @@
     alertStatus.textContent = label('Waiting for Android…', 'در انتظار پاسخ اندروید…');
   };
   panel.append(alerts, alertStatus);
-  window.addEventListener('message', async event => {
-    if (event.source || typeof event.data !== 'string' || !event.data.startsWith('kf-league-token:')) return;
-    const reply = await sb.rpc('kf_register_league_device', { device_token: event.data.slice('kf-league-token:'.length) });
-    alertStatus.textContent = reply.error ? label('Try enabling alerts again.', 'فعال‌سازی اعلان را دوباره امتحان کن.')
-      : label('Phone registered for league alerts.', 'گوشی برای اعلان لیگ ثبت شد.');
+  window.addEventListener('kf-league-push-status', event => {
+    alertStatus.textContent = event.detail?.ok
+      ? label('Phone registered for league alerts.', 'گوشی برای اعلان لیگ ثبت شد.')
+      : label('Try enabling alerts again.', 'فعال‌سازی اعلان را دوباره امتحان کن.');
   });
   const availability = document.createElement('div');
   panel.append(availability);
