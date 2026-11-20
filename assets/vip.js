@@ -115,7 +115,7 @@ let leagueModule;
 function loadLeagueModule(){
   if(leagueModule) return;
   leagueModule=document.createElement("script");
-  leagueModule.src="assets/league.js?v=green-results2";
+  leagueModule.src="assets/league.js?v=league-hours3";
   leagueModule.onerror=()=>{leagueModule.remove();leagueModule=null;};
   document.head.appendChild(leagueModule);
 }

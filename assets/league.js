@@ -127,7 +127,7 @@
 #vipPanelLeague .kf-league-available-items{display:flex;flex-wrap:wrap;gap:5px}
 #vipPanelLeague .kf-league-available-chip{display:inline-block;color:#ffe3a6;border:1px solid rgba(236,185,99,.37);background:rgba(211,151,68,.12);border-radius:7px;padding:4px 6px;font-size:10px;line-height:1.25;white-space:nowrap;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}
 
-/* Green means this opponent's selected range overlaps the current player's own availability. */
+/* Highlight shared hours only while a head-to-head game remains. */
 #vipPanelLeague .kf-league-available-chip.is-match{
   color:#ddffe8;
   background:linear-gradient(135deg,rgba(34,130,76,.37),rgba(39,106,69,.28));
@@ -250,16 +250,27 @@
   }
   let displayedLeagueWindows = {};
   let ownLeagueWindows = [];
+  let completedGames = new Map();
+  function updateCompletedGames(matches) {
+    completedGames = new Map();
+    const user = currentUser?.id;
+    for (const match of matches || []) {
+      if (match.state !== 'won' && match.state !== 'draw') continue;
+      if (match.host !== user && match.guest !== user) continue;
+      const opponent = match.host === user ? match.guest : match.host;
+      completedGames.set(opponent, (completedGames.get(opponent) || 0) + 1);
+    }
+  }
   function drawLeagueHourRows(rows) {
     for (const row of rows) {
       if (!row.isConnected) continue;
       const cell=row.querySelector('.kf-league-availability');
       if (!cell) continue;
       const id=row.dataset.kfLeaguePlayer;
-      renderMemberHours(cell,displayedLeagueWindows[id],ownLeagueWindows,id===currentUser?.id);
+      renderMemberHours(cell,displayedLeagueWindows[id],ownLeagueWindows,id);
     }
   }
-  function renderMemberHours(cell, windows, myWindows, isOwnRow) {
+  function renderMemberHours(cell, windows, myWindows, playerId) {
     cell.replaceChildren();
     const title = document.createElement('span');
     title.className = 'kf-league-available-title';
@@ -277,12 +288,13 @@
     const locale = leagueHourLocale();
     const formatter = new Intl.DateTimeFormat(locale,{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
     const clock = new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+    const canMeet = playerId !== currentUser?.id && (completedGames.get(playerId) || 0) < 2;
     for (const range of windows) {
       const start = new Date(range.start), end = new Date(range.end);
       if(!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) continue;
       const chip = document.createElement('span');
       chip.className = 'kf-league-available-chip';
-      if (!isOwnRow && Array.isArray(myWindows) &&
+      if (canMeet && Array.isArray(myWindows) &&
           myWindows.some(mine=>leagueWindowsOverlap(range,mine))) {
         chip.classList.add('is-match');
       }
@@ -310,6 +322,8 @@
       const result = await sb.rpc('kf_league_board');
       if (result.error || !result.data) throw result.error || new Error('No league board');
       if (currentUser?.id !== user || panel.hidden) return;
+      if (!rows[0].isConnected) return;
+      updateCompletedGames(result.data.matches);
       displayedLeagueWindows = result.data.availability_by_player || {};
       ownLeagueWindows = Array.isArray(result.data.windows) ? result.data.windows : [];
       drawLeagueHourRows(rows);
@@ -422,6 +436,8 @@
           const reply=await sb.rpc('kf_league_board');
           if(reply.error || !reply.data || reply.data.group_id!==group.group_id) throw reply.error||new Error('Invalid league board');
           if(panel.hidden || !scheduleWrap.isConnected) return;
+          updateCompletedGames(reply.data.matches);
+          drawLeagueHourRows(availability.querySelectorAll('tr[data-kf-league-player]'));
           updateLeagueScores(reply.data);
           renderLeagueSchedule(reply.data);
         } catch(_) {
@@ -571,6 +587,7 @@
   function renderWindows(group) {
     stopLeagueCountdowns();
     availability.replaceChildren();
+    updateCompletedGames(group.matches);
     displayedLeagueWindows = group.availability_by_player || {};
     ownLeagueWindows = Array.isArray(group.windows) ? group.windows : [];
     const heading = text => {
@@ -613,7 +630,7 @@
       } else {
         const time = tr.insertCell();
         time.className = 'kf-league-availability';
-        renderMemberHours(time,displayedLeagueWindows[row.player],ownLeagueWindows,row.player===currentUser?.id);
+        renderMemberHours(time,displayedLeagueWindows[row.player],ownLeagueWindows,row.player);
       }
     }
     availability.append(table);
