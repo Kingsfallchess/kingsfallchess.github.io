@@ -136,6 +136,12 @@ document.querySelectorAll("[data-vip-section]").forEach(function(tab){
 });
 vipSelectSection("themes");
 
+$("leagueBtn").onclick = function(){
+  showPage("vip");
+  vipSelectSection("league");
+  window.scrollTo(0,0);
+};
+
 $("vipBack").onclick=function(){showPage("home");};
 $("vipApply").onclick=function(){
   vipApplyAppearance(vipSelectedBoard,vipSelectedPiece,vipSelectedColor);

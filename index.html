@@ -260,7 +260,7 @@ main{padding:16px 0 24px}
 .quickbar .quickplay:hover{background:var(--btn-hover)}
 .quickbar .quickplay:disabled{opacity:.55;cursor:not-allowed}
 .quickstate{padding:0 12px;color:var(--muted);font-size:12px}
-.tournament-bar,.roulette-bar{display:flex;align-items:stretch;gap:10px;margin:0 0 14px;width:100%}
+.tournament-bar,.league-bar,.roulette-bar{display:flex;align-items:stretch;gap:10px;margin:0 0 14px;width:100%}
 .tourn-btn,.roulette-btn{
   flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;
   padding:0 14px;min-height:54px;border:1px solid var(--line2);border-radius:5px;
@@ -688,6 +688,7 @@ body.game-focus .wrap > header,
 body.game-focus .champion-banner,
 body.game-focus .quickbar,
 body.game-focus .tournament-bar,
+body.game-focus .league-bar,
 body.game-focus .roulette-bar,
 body.game-focus .bloodblade-bar,
 body.game-focus .computer-panel,
@@ -1706,6 +1707,7 @@ html.kf-native-app.kf-fa #authDialog .modal-head,
 html.kf-native-app.kf-fa #profileDialog .modal-head{direction:rtl}
 html.kf-native-app.kf-fa #pageHome .quickbar,
 html.kf-native-app.kf-fa #pageHome .tournament-bar,
+html.kf-native-app.kf-fa #pageHome .league-bar,
 html.kf-native-app.kf-fa #pageHome .roulette-bar,
 html.kf-native-app.kf-fa #pageHome .computer-panel,
 html.kf-native-app.kf-fa #pageHome .side,
@@ -1856,6 +1858,15 @@ html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
         </div>
       </div>
       <span class="tb-timer" id="tournBtnTimer">--:--:--</span>
+    </button>
+  </div>
+
+  <div class="league-bar">
+    <button class="tourn-btn" id="leagueBtn" type="button" aria-controls="vipPanelLeague">
+      <span class="tb-left">
+        <span class="tb-icon" aria-hidden="true">🛡️</span>
+        <span class="tb-title">League</span>
+      </span>
     </button>
   </div>
 
@@ -2472,7 +2483,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=league-hours3","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=home-league1","assets/core-game.js?v=gameflags1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
