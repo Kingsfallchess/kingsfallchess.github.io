@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="kf-tab-pending">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kingsfall — Every King Can Fall.</title>
@@ -9,6 +9,11 @@ window.kfIsNativeApp = /KingsfallAndroid\/\d/.test(navigator.userAgent);
 if (window.kfIsNativeApp) document.documentElement.classList.add("kf-native-app");
 </script>
 <style>
+html.kf-tab-pending body > :not(#kfTabGate){display:none!important}
+#kfTabGate{display:none}
+html.kf-tab-pending #kfTabGate{display:grid;place-content:center;justify-items:center;min-height:90vh;padding:24px;color:var(--gold2);text-align:center}
+#kfTabMessage{max-width:36ch}
+
 :root{
   --bg1:#571124;--bg2:#300610;--bg3:#1b0208;
   --panel-bg1:#2b0710;--panel-bg2:#1b0309;
@@ -1869,6 +1874,7 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
 </style>
 </head>
 <body class="kf-home-active">
+<div id="kfTabGate"><p id="kfTabMessage" role="status"></p><button type="button" id="kfTabRetry" class="btn" hidden></button></div>
 <div id="kfToastWrap"></div>
 <div class="wrap">
   <header class="topnav">
@@ -2602,43 +2608,93 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
  </div>
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script type="module">
-import { Chess as ChessV14 } from "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm";
-// Preserve Kingsfall's proven synchronous move/clock pipeline while adapting
-// the v0.10 API to the pinned v1.4 chess rules engine.
-class KingsfallChess extends ChessV14 {
-  game_over(){ return this.isGameOver(); }
-  in_check(){ return this.isCheck(); }
-  in_checkmate(){ return this.isCheckmate(); }
-  in_draw(){ return this.isDraw(); }
-  load(fen, options){
-    try { super.load(fen, options); return true; }
-    catch(error){ return false; }
+async function startKingsfall(){
+  function loadScript(source){
+    return new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src=source;
+      script.onload=resolve;
+      script.onerror=()=>reject(new Error("Could not load " + source));
+      document.head.appendChild(script);
+    });
   }
-  load_pgn(pgn, options){
-    try { super.loadPgn(pgn, options); return true; }
-    catch(error){ return false; }
+  // Keep offline features available when only the online client fails to load.
+  const [, { Chess: ChessV14 }] = await Promise.all([
+    loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").catch(()=>{}),
+    import("https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm")
+  ]);
+  // Preserve Kingsfall's proven synchronous move/clock pipeline while adapting
+  // the v0.10 API to the pinned v1.4 chess rules engine.
+  class KingsfallChess extends ChessV14 {
+    game_over(){ return this.isGameOver(); }
+    in_check(){ return this.isCheck(); }
+    in_checkmate(){ return this.isCheckmate(); }
+    in_draw(){ return this.isDraw(); }
+    load(fen, options){
+      try { super.load(fen, options); return true; }
+      catch(error){ return false; }
+    }
+    load_pgn(pgn, options){
+      try { super.loadPgn(pgn, options); return true; }
+      catch(error){ return false; }
+    }
+    move(move, options){
+      try { return super.move(move, options); }
+      catch(error){ return null; }
+    }
   }
-  move(move, options){
-    try { return super.move(move, options); }
-    catch(error){ return null; }
+  window.Chess = KingsfallChess;
+  const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=guest-stats1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=guest-expiry1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
+  for(const source of kingsfallChunks) await loadScript(source);
+}
+const notice = document.getElementById("kfTabMessage");
+const retry = document.getElementById("kfTabRetry");
+let persian = navigator.language.startsWith("fa");
+try {
+  const preference = localStorage.getItem("kf_android_ui_language_v1");
+  if(preference) persian = preference === "fa";
+} catch {}
+notice.parentElement.lang = persian ? "fa" : "en";
+notice.parentElement.dir = persian ? "rtl" : "ltr";
+retry.textContent = persian ? "تلاش دوباره" : "Try again";
+retry.onclick = () => location.reload();
+const gateClass = document.documentElement.classList;
+function gateError(message){
+  gateClass.add("kf-tab-pending");
+  notice.textContent = message;
+  retry.hidden = false;
+}
+const pending = new AbortController();
+let release;
+let departing = false;
+const waitNotice = setTimeout(()=>{
+  notice.textContent = persian ? "کینگزفال در تب دیگری باز است. با بستن آن تب، بازی اینجا باز می‌شود." : "Kingsfall is open in another tab. Close it to continue here.";
+},250);
+window.addEventListener("pagehide",()=>{
+  departing = true;
+  clearTimeout(waitNotice);
+  pending.abort();
+  if(release) release();
+});
+window.addEventListener("pageshow",event=>{ if(event.persisted) location.reload(); });
+async function enterTab(){
+  try {
+    await navigator.locks.request("kingsfall-active-tab", {mode:"exclusive",signal:pending.signal}, async ()=>{
+      if(departing) return;
+      clearTimeout(waitNotice);
+      const lifetime = new Promise(resolve=>{ release=resolve; });
+      gateClass.remove("kf-tab-pending");
+      try { await startKingsfall(); }
+      catch { gateError(persian ? "بارگذاری کینگزفال کامل نشد." : "Kingsfall could not finish loading."); }
+      await lifetime;
+    });
+  } catch {
+    clearTimeout(waitNotice);
+    if(!departing) gateError(persian ? "برای باز کردن کینگزفال از یک مرورگر به‌روز استفاده کن." : "Use an up-to-date browser to open Kingsfall.");
   }
 }
-window.Chess = KingsfallChess;
-// Load the existing classic-script sections in their original order.
-// Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=guest-stats1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=guest-expiry1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
-for (const source of kingsfallChunks) {
-  await new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = source;
-    script.async = false;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error("Could not load Kingsfall module: " + source));
-    document.head.appendChild(script);
-  });
-}
+enterTab();
 </script>
   <!-- ⬇️ کد VS رو دقیقاً اینجا بذار ⬇️ -->
 <div id="vsOverlay">
