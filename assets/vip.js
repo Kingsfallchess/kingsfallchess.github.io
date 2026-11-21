@@ -1,5 +1,5 @@
 "use strict";
-$("getVipBtn").onclick = function(){ showPage("vip"); window.scrollTo(0,0); };
+$("getVipBtn").onclick = function(){ vipSelectSection("games"); showPage("vip"); window.scrollTo(0,0); };
 
 /* ===== VIP STYLE STUDIO (client-side preview, no paid access yet) ===== */
 var vipBoardThemes = [
@@ -121,19 +121,27 @@ function loadLeagueModule(){
 }
 window.addEventListener("load",loadLeagueModule,{once:true});
 if(document.readyState==="complete")loadLeagueModule();
+const vipTabs = Array.from(document.querySelectorAll("[data-vip-section]"));
 function vipSelectSection(section){
-  if(!["tournament","themes"].includes(section))section="themes";
-  ["tournament","themes"].forEach(function(name){
-    var tab=document.querySelector('[data-vip-section="'+name+'"]');
-    var panel=document.getElementById("vipPanel"+name.charAt(0).toUpperCase()+name.slice(1));
-    if(tab){tab.classList.toggle("active",name===section);tab.setAttribute("aria-selected",name===section?"true":"false");tab.tabIndex=name===section?0:-1;}
-    if(panel)panel.hidden=name!==section;
+  vipTabs.forEach(function(tab){
+    const selected = tab.dataset.vipSection === section;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    document.getElementById(tab.getAttribute("aria-controls")).hidden = !selected;
   });
 }
-document.querySelectorAll("[data-vip-section]").forEach(function(tab){
-  tab.addEventListener("click",function(){vipSelectSection(tab.dataset.vipSection);});
+vipTabs.forEach(function(tab, index){
+  tab.addEventListener("click", function(){ vipSelectSection(tab.dataset.vipSection); });
+  tab.addEventListener("keydown", function(event){
+    const next = {ArrowLeft:(index+1)%vipTabs.length, ArrowRight:(index+vipTabs.length-1)%vipTabs.length, Home:0, End:vipTabs.length-1}[event.key];
+    if(next === undefined) return;
+    event.preventDefault();
+    vipTabs[next].focus();
+    vipSelectSection(vipTabs[next].dataset.vipSection);
+  });
 });
-vipSelectSection("themes");
+vipSelectSection("games");
 
 const leagueHomeButton = $("leagueBtn");
 const leagueHomePanel = $("vipPanelLeague");

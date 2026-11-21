@@ -1379,7 +1379,7 @@ body.game-focus #firstMoveDeadlineNormal{display:none!important}
 .kf-audit-offender{margin:10px 0;padding:10px 12px;border:1px solid rgba(255,151,94,.55);border-radius:10px;background:rgba(141,52,26,.16);font-size:13px;line-height:1.6;overflow-wrap:anywhere}.kf-audit-offender b{color:#ffcb8d}.kf-audit-offender small{display:block;color:#b8c4d6;font-size:11px}.kf-audit-replay-head>div{min-width:0}.kf-audit-replay-head .btn{flex-shrink:0}@media(max-width:420px){.kf-audit-replay{padding:8px}.kf-audit-replay-panel{padding:12px;max-height:calc(100dvh - 16px)}.kf-audit-replay-board{width:min(100%,330px)}.kf-audit-replay-controls{gap:5px}.kf-audit-replay-controls .btn{min-width:36px;padding:8px}}
 .kf-audit-replay-note{border-left:3px solid #dba559;padding-left:10px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 /* VIP section navigation */
-.vip-section-tabs{display:grid;grid-template-columns:1.5fr 1fr;gap:6px;margin:14px 0 18px;padding:5px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.2);direction:rtl}
+.vip-section-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:14px 0 18px;padding:5px;border:1px solid var(--line2);border-radius:13px;background:rgba(0,0,0,.2);direction:rtl}
 .vip-section-tab{min-width:0;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:clamp(11px,2.7vw,14px);font-weight:800;padding:12px 5px;cursor:pointer}
 .vip-section-tab.active{color:var(--gold2);background:var(--btn-bg);border-color:var(--gold);box-shadow:0 2px 12px rgba(0,0,0,.18)}
 .vip-section-tab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
@@ -1910,11 +1910,13 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
     <section class="vip-studio">
       <div class="vip-back-row"><button class="btn" id="vipBack" type="button">← Back</button></div>
       <nav class="vip-section-tabs" aria-label="VIP sections" role="tablist">
-        <button class="vip-section-tab" type="button" id="vipTabTournament" role="tab" aria-controls="vipPanelTournament" aria-selected="false" data-vip-section="tournament">تورنمنت اختصاصی</button>
-        <button class="vip-section-tab active" type="button" id="vipTabThemes" role="tab" aria-controls="vipPanelThemes" aria-selected="true" data-vip-section="themes">تم‌ها</button>
+        <button class="vip-section-tab active" type="button" id="vipTabGames" role="tab" aria-controls="vipPanelGames" aria-selected="true" data-vip-section="games">بازی‌ها</button>
+        <button class="vip-section-tab" tabindex="-1" type="button" id="vipTabTournament" role="tab" aria-controls="vipPanelTournament" aria-selected="false" data-vip-section="tournament">تورنمنت‌ها</button>
+        <button class="vip-section-tab" tabindex="-1" type="button" id="vipTabThemes" role="tab" aria-controls="vipPanelThemes" aria-selected="false" data-vip-section="themes">تم‌ها</button>
       </nav>
+      <section class="vip-section-panel" id="vipPanelGames" role="tabpanel" aria-labelledby="vipTabGames"></section>
       <section class="vip-section-panel" id="vipPanelTournament" role="tabpanel" aria-labelledby="vipTabTournament" hidden><p class="vip-section-placeholder">بخش تورنمنت اختصاصی به‌زودی اضافه می‌شود.</p></section>
-      <div class="vip-section-panel" id="vipPanelThemes" role="tabpanel" aria-labelledby="vipTabThemes">
+      <div class="vip-section-panel" id="vipPanelThemes" role="tabpanel" aria-labelledby="vipTabThemes" hidden>
       <h3>Exclusive chessboard themes</h3>
       <div id="vipBoardChoices" class="vip-choices" role="group" aria-label="Chessboard themes"></div>
       <h3>Piece shapes</h3>
@@ -2624,7 +2626,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=league-population1","assets/core-game.js?v=leaguecrest1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=leaguecrest1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
