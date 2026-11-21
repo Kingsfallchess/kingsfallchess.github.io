@@ -89,8 +89,8 @@
     overlay.querySelector("#kfPushLater").textContent =
       localized("Maybe later", "فعلاً نه");
     overlay.querySelector("#kfPushFootnote").textContent =
-      localized("You can change this later in the League section.",
-        "بعداً هم از بخش لیگ می‌تونی اعلان‌ها رو فعال کنی.");
+      localized("You can change this later in your profile.",
+        "بعداً هم از پروفایلت می‌تونی اعلان‌ها رو فعال کنی.");
 
     overlay.querySelector("#kfPushLater").addEventListener("click", function () {
       saveDecision(user.id, "later");
@@ -114,7 +114,29 @@
     pending = setTimeout(function () { showFor(user); }, 1200);
   }
 
+  var profileSave = document.getElementById("profileSave");
+  var profileAction = document.createElement("a");
+  profileAction.id = "kfProfilePushEnable";
+  profileAction.className = "btn";
+  profileAction.href = "/enable-league-push";
+  profileAction.style.cssText = "display:none;margin-top:12px;text-align:center;text-decoration:none";
+  profileSave.before(profileAction);
+
+  function refreshProfileAction(user) {
+    profileAction.style.display = emailAccount(user) ? "block" : "none";
+    profileAction.textContent = localized("Enable phone notifications", "فعال کردن اعلان‌های گوشی");
+  }
+  function refreshProfileFromAccount() {
+    refreshProfileAction(typeof currentUser !== "undefined" ? currentUser : null);
+  }
+  new MutationObserver(refreshProfileFromAccount).observe(document.getElementById("profileDialog"),
+    { attributes: true, attributeFilter: ["open", "class"] });
+  new MutationObserver(refreshProfileFromAccount).observe(document.documentElement,
+    { attributes: true, attributeFilter: ["lang"] });
+  refreshProfileFromAccount();
+
   sb.auth.onAuthStateChange(function (event, session) {
+    refreshProfileAction(session && session.user);
     if (event === "SIGNED_OUT") {
       if (pending) clearTimeout(pending);
       pending = null;
@@ -151,7 +173,7 @@
     } catch (error) {
       console.warn("League push registration failed:", error);
       if (typeof toast === "function")
-        toast(localized("Could not register this phone. Try again in League.", "ثبت گوشی انجام نشد؛ از بخش لیگ دوباره تلاش کن."), "error");
+        toast(localized("Could not register this phone. Try again from your profile.", "ثبت گوشی انجام نشد؛ از پروفایلت دوباره تلاش کن."), "error");
     }
     window.dispatchEvent(new CustomEvent("kf-league-push-status", { detail: { ok: succeeded } }));
   });
