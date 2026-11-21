@@ -473,17 +473,65 @@ async function updateAuth(userOverride){
   }
   applyAuthUser(user);
 }
-/* A guest has a real, server-verified anonymous Supabase session.
-   It is created on first Play/Register, never on a casual page visit.
-   The session persists on this device and is re-used after reload. */
+// Each open document renews its own lease on the shared anonymous session.
+var kfGuestTabId = crypto.randomUUID();
+var kfGuestSession = null;
+var kfGuestHeartbeat = null;
+var kfGuestPageLeft = false;
+function kfCloseGuestTab(session){
+  if(!session) return;
+  fetch(SUPABASE_URL + "/rest/v1/rpc/kf_guest_tab", {
+    method:"POST", keepalive:true,
+    headers:{apikey:SUPABASE_KEY, Authorization:"Bearer " + session.access_token, "Content-Type":"application/json"},
+    body:JSON.stringify({p_tab:kfGuestTabId,p_close:true})
+  }).catch(function(){ /* Server expiry also covers interrupted connections. */ });
+}
+async function kfGuestIsLive(session){
+  const result = await sb.rpc("kf_guest_tab",{p_tab:kfGuestTabId,p_close:false});
+  if(result.error) throw result.error;
+  if(result.data === true) return true;
+  const latest = await sb.auth.getSession();
+  if(latest.data.session?.user.id === session.user.id && latest.data.session.user.is_anonymous){
+    await sb.auth.signOut({scope:"local"});
+  }
+  return false;
+}
+function kfRefreshGuestTab(){
+  if(!kfGuestPageLeft && kfGuestSession) kfGuestIsLive(kfGuestSession).catch(function(){});
+}
+function kfTrackGuest(session){
+  const next = session?.user.is_anonymous ? session : null;
+  const changed = next?.user.id !== kfGuestSession?.user.id;
+  if(changed) kfCloseGuestTab(kfGuestSession);
+  kfGuestSession = next;
+  if(!changed) return;
+  clearInterval(kfGuestHeartbeat);
+  if(next){
+    setTimeout(kfRefreshGuestTab,0);
+    kfGuestHeartbeat = setInterval(kfRefreshGuestTab,60000);
+  }
+}
+window.addEventListener("pagehide",function(){
+  kfGuestPageLeft = true;
+  kfCloseGuestTab(kfGuestSession);
+});
+window.addEventListener("pageshow",function(event){
+  if(event.persisted) kfGuestTabId = crypto.randomUUID();
+  kfGuestPageLeft = false;
+  if(event.persisted) kfRefreshGuestTab();
+});
+document.addEventListener("visibilitychange",function(){ if(!document.hidden) kfRefreshGuestTab(); });
 var kfGuestSignInPending=null;
 async function kfEnsurePlaySession(){
   if(!sb)throw new Error("Supabase is unavailable.");
   var existing=await withTimeout(sb.auth.getSession(),9000);
   if(existing.error)throw existing.error;
   if(existing.data&&existing.data.session&&existing.data.session.user){
-    currentUser=existing.data.session.user;
-    return existing.data.session;
+    const session=existing.data.session;
+    if(!session.user.is_anonymous || await kfGuestIsLive(session)){
+      currentUser=session.user;
+      return session;
+    }
   }
   if(kfGuestSignInPending)return kfGuestSignInPending;
   kfGuestSignInPending=(async function(){
@@ -500,6 +548,8 @@ async function kfEnsurePlaySession(){
     }
     if(!result.data||!result.data.session||!result.data.session.user)
       throw new Error("Could not create a guest session.");
+    kfTrackGuest(result.data.session);
+    if(!await kfGuestIsLive(result.data.session)) throw new Error("Guest session expired. Try again.");
     currentUser=result.data.session.user;
     applyAuthUser(currentUser);
     return result.data.session;
@@ -1282,7 +1332,8 @@ function initApp(){
   }
 
   /* Auth state change */
-  sb.auth.onAuthStateChange(function(event){
+  sb.auth.onAuthStateChange(function(event,session){
+    kfTrackGuest(session);
     if(event === "PASSWORD_RECOVERY"){
       // Legacy recovery links may still return to the home page.
       // Preserve the Supabase URL tokens by navigating to the dedicated recovery page.

@@ -3649,7 +3649,7 @@ function resetQueueUI(){
 /* ===== History ===== */
 async function loadHistory(){
   var section = $("historySection");
-  if(!sb || !currentUser){ section.classList.remove("show"); return; }
+  if(!sb || !currentUser || currentUser.is_anonymous){ section.classList.remove("show"); return; }
   var res = await sb.rpc("kf_get_my_history", {p_limit: 10});
   if(res.error){ console.warn("History error:", res.error); section.classList.remove("show"); return; }
   historyData = res.data || [];
