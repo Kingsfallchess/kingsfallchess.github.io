@@ -137,13 +137,25 @@ vipSelectSection("themes");
 
 const leagueHomeButton = $("leagueBtn");
 const leagueHomePanel = $("vipPanelLeague");
+const leagueDialog = $("leagueDialog");
 function setLeagueOpen(open){
-  leagueHomePanel.hidden = !open;
-  leagueHomeButton.setAttribute("aria-expanded", String(open));
+  if(open && !leagueDialog.open){
+    leagueHomePanel.hidden = false;
+    leagueDialog.showModal();
+    leagueHomeButton.setAttribute("aria-expanded", "true");
+  } else if(!open && leagueDialog.open){
+    leagueDialog.close();
+  }
 }
+leagueDialog.addEventListener("close", function(){
+  if(leagueDialog.open) return;
+  leagueHomePanel.hidden = true;
+  leagueHomeButton.setAttribute("aria-expanded", "false");
+});
+$("leagueClose").onclick = function(){ setLeagueOpen(false); };
 leagueHomeButton.onclick = function(){
   loadLeagueModule();
-  setLeagueOpen(leagueHomePanel.hidden);
+  setLeagueOpen(true);
 };
 const closeLeagueWhenAway = new MutationObserver(function(){
   if (!$("pageHome").classList.contains("active") || document.body.classList.contains("game-focus")) setLeagueOpen(false);

@@ -1783,7 +1783,12 @@ html.kf-native-app.kf-fa #pageHome .game-fullscreen{direction:ltr}
 </style>
 <style>
 .league-bar {flex-direction:column}
-#vipPanelLeague:not([hidden]) {padding:clamp(12px,3vw,24px);border:1px solid var(--line2);border-radius:12px;background:var(--panel);min-width:0}
+#leagueDialog{width:min(900px,calc(100% - 20px));height:min(860px,94vh);height:min(860px,94dvh);overflow:hidden}
+#leagueDialog[open]{display:flex;flex-direction:column}
+#leagueDialog .tourn-head{align-items:center;padding:12px 16px;background:linear-gradient(110deg,#481729,#26101c);border-bottom:1px solid #9a784f;color:#f9dfa5}
+#leagueClose{min-width:44px;min-height:44px;color:inherit;cursor:pointer}
+#vipPanelLeague{min-height:0;overflow:auto;overscroll-behavior:contain;padding:clamp(12px,3vw,24px)}
+html.kf-fa #leagueDialog{direction:rtl;text-align:start}
 #leagueBtn {
   position:relative; isolation:isolate; overflow:hidden; display:flex; align-items:center; gap:14px;
   width:100%; min-height:74px; padding:10px 18px; cursor:pointer;
@@ -1968,7 +1973,7 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
   </div>
 
   <div class="league-bar">
-    <button id="leagueBtn" type="button" aria-controls="vipPanelLeague" aria-expanded="false">
+    <button id="leagueBtn" type="button" aria-haspopup="dialog" aria-controls="leagueDialog" aria-expanded="false">
       <svg class="league-crest" aria-hidden="true" viewBox="0 0 48 56" fill="none">
         <path d="M3 5 Q13 6 24 2 Q35 6 45 5 V28 Q44 42 24 53 Q4 42 3 28Z" fill="#351521" stroke="#e8c17d" stroke-width="2"/>
         <path d="M7 9 Q16 10 24 6 Q32 10 41 9 V28 Q40 39 24 48 Q8 39 7 28Z" stroke="#996d48"/>
@@ -1977,7 +1982,6 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
       <span class="league-name" lang="en">League</span>
       <span class="league-arrow" aria-hidden="true"></span>
     </button>
-    <section id="vipPanelLeague" aria-labelledby="leagueBtn" hidden></section>
   </div>
 
   <div class="roulette-bar">
@@ -2270,6 +2274,13 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
     </div>
     <div class="promo-grid" id="promoGrid"></div>
   </div>
+</dialog>
+<dialog id="leagueDialog" aria-labelledby="leagueDialogTitle">
+  <header class="tourn-head">
+    <h2 id="leagueDialogTitle">League</h2>
+    <button class="close" type="button" id="leagueClose" aria-label="Close" autofocus>×</button>
+  </header>
+  <section id="vipPanelLeague" hidden></section>
 </dialog>
   <dialog id="tournDialog">
   <div class="tourn-panel">
@@ -2610,7 +2621,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=home-league2","assets/core-game.js?v=leaguecrest1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=league-dialog1","assets/core-game.js?v=leaguecrest1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
