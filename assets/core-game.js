@@ -2635,6 +2635,7 @@ async function loadGameNameFlags(row, myIsWhite, topName, botName){
   }catch(error){ console.warn("Could not load game flags", error); }
 }
 function enterFullscreenGame(row){
+  if(!$("pageHome").classList.contains("active")) showPage("home");
   document.body.classList.add("game-focus");
   kfUpdateRoyalMatchBadges(row);
   fsPlayerColor = (row.white_id === currentUser.id) ? "w" : "b";

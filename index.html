@@ -1721,7 +1721,7 @@ html.kf-native-app.kf-fa #profileDialog .modal-head{direction:rtl}
 html.kf-native-app.kf-fa #pageHome .quickbar,
 html.kf-native-app.kf-fa #pageHome .tournament-bar,
 html.kf-native-app.kf-fa #pageHome .league-bar,
-html.kf-native-app.kf-fa #pageHome .roulette-bar,
+html.kf-native-app.kf-fa #vipPanelGames .roulette-bar,
 html.kf-native-app.kf-fa #pageHome .computer-panel,
 html.kf-native-app.kf-fa #pageHome .side,
 html.kf-native-app.kf-fa #pageHome .history-section{direction:rtl}
@@ -1860,7 +1860,7 @@ html.kf-fa #leagueBtn .league-arrow::after {transform:rotate(-45deg)}
 #rouletteBtn .rb-sub,#bloodbladeBtn small {font-family:inherit;font-size:11px;line-height:1.4;color:var(--mode-muted);margin-top:4px;overflow-wrap:anywhere}
 .mode-arrow {margin-inline-start:auto;width:28px;height:28px;flex:none;display:grid;place-items:center;border:1px solid var(--mode-edge);border-radius:50%;color:var(--mode-ink)}
 .mode-arrow::after {content:"";width:7px;height:7px;border-block-start:2px solid;border-inline-end:2px solid;transform:rotate(45deg)}
-html.kf-native-app.kf-fa #pageHome .bloodblade-bar {direction:rtl}
+html.kf-native-app.kf-fa #vipPanelGames .bloodblade-bar {direction:rtl}
 html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
 #rouletteBtn:disabled,#bloodbladeBtn:disabled {opacity:.75;cursor:default}
 #rouletteBtn:disabled .mode-arrow,#bloodbladeBtn:disabled .mode-arrow {display:none}
@@ -1914,7 +1914,40 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
         <button class="vip-section-tab" tabindex="-1" type="button" id="vipTabTournament" role="tab" aria-controls="vipPanelTournament" aria-selected="false" data-vip-section="tournament">تورنمنت‌ها</button>
         <button class="vip-section-tab" tabindex="-1" type="button" id="vipTabThemes" role="tab" aria-controls="vipPanelThemes" aria-selected="false" data-vip-section="themes">تم‌ها</button>
       </nav>
-      <section class="vip-section-panel" id="vipPanelGames" role="tabpanel" aria-labelledby="vipTabGames"></section>
+      <section class="vip-section-panel" id="vipPanelGames" role="tabpanel" aria-labelledby="vipTabGames">
+  <div class="roulette-bar">
+    <button class="roulette-btn" id="rouletteBtn" type="button">
+      <div class="rb-left">
+        <svg class="mode-emblem" viewBox="0 0 56 56" aria-hidden="true">
+          <circle cx="28" cy="28" r="24" fill="#102b24" stroke="#dfbc7d" stroke-width="1.8"/>
+          <circle cx="28" cy="28" r="18" fill="none" stroke="#638978" stroke-width="7"/>
+          <circle cx="28" cy="28" r="18" fill="none" stroke="#dbaa69" stroke-width="7" pathLength="16" stroke-dasharray="1 1" transform="rotate(-90 28 28)"/>
+          <circle cx="28" cy="28" r="13" fill="#16382e" stroke="#d8b57b"/>
+          <path d="m28 17 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#f1d399"/>
+          <circle cx="39" cy="14" r="3" fill="#fff4d2" stroke="#664d32"/>
+        </svg>
+        <div class="rb-text">
+          <span class="rb-title">ROULETTE</span>
+          <span class="rb-sub" id="rouletteSub">Random opening · variable-length line auto-played</span>
+        </div>
+      </div>
+      <span class="mode-arrow" aria-hidden="true"></span>
+    </button>
+    <button class="btn" id="cancelRoulette" hidden style="flex:none;padding:0 16px">Cancel</button>
+  </div>
+
+  <div class="bloodblade-bar"><button class="bloodblade-btn" id="bloodbladeBtn" type="button"><svg class="mode-emblem" viewBox="0 0 56 56" aria-hidden="true">
+        <path d="m28 2 21 13v23L28 54 7 38V15Z" fill="#35121f" stroke="#cb8c77" stroke-width="1.6"/>
+        <path d="m28 6 17 11v19L28 49 11 36V17Z" fill="none" stroke="#794454"/>
+        <g transform="rotate(25 28 28)">
+          <path d="m28 8 4 10-2 16h-4l-2-16Z" fill="#ffe5ca"/>
+          <path d="m28 8 4 10-2 16h-2Z" fill="#c87679"/>
+          <path d="m19 31 9 3 9-3-1 4-6 2v7h-4v-7l-6-2Z" fill="#e1ad73"/>
+          <circle cx="28" cy="45" r="2.8" fill="#e1ad73"/>
+        </g>
+      </svg>
+      <span class="bloodblade-text"><strong>BLOODBLADE</strong><small id="bloodbladeSub">Blood Tributes · mandatory sacrifice</small></span><span class="mode-arrow" aria-hidden="true"></span></button><button class="btn" id="cancelBloodblade" hidden type="button">Cancel</button></div>
+      </section>
       <section class="vip-section-panel" id="vipPanelTournament" role="tabpanel" aria-labelledby="vipTabTournament" hidden><p class="vip-section-placeholder">بخش تورنمنت اختصاصی به‌زودی اضافه می‌شود.</p></section>
       <div class="vip-section-panel" id="vipPanelThemes" role="tabpanel" aria-labelledby="vipTabThemes" hidden>
       <h3>Exclusive chessboard themes</h3>
@@ -1989,38 +2022,7 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
     </button>
   </div>
 
-  <div class="roulette-bar">
-    <button class="roulette-btn" id="rouletteBtn" type="button">
-      <div class="rb-left">
-        <svg class="mode-emblem" viewBox="0 0 56 56" aria-hidden="true">
-          <circle cx="28" cy="28" r="24" fill="#102b24" stroke="#dfbc7d" stroke-width="1.8"/>
-          <circle cx="28" cy="28" r="18" fill="none" stroke="#638978" stroke-width="7"/>
-          <circle cx="28" cy="28" r="18" fill="none" stroke="#dbaa69" stroke-width="7" pathLength="16" stroke-dasharray="1 1" transform="rotate(-90 28 28)"/>
-          <circle cx="28" cy="28" r="13" fill="#16382e" stroke="#d8b57b"/>
-          <path d="m28 17 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#f1d399"/>
-          <circle cx="39" cy="14" r="3" fill="#fff4d2" stroke="#664d32"/>
-        </svg>
-        <div class="rb-text">
-          <span class="rb-title">ROULETTE</span>
-          <span class="rb-sub" id="rouletteSub">Random opening · variable-length line auto-played</span>
-        </div>
-      </div>
-      <span class="mode-arrow" aria-hidden="true"></span>
-    </button>
-    <button class="btn" id="cancelRoulette" hidden style="flex:none;padding:0 16px">Cancel</button>
-  </div>
-
-  <div class="bloodblade-bar"><button class="bloodblade-btn" id="bloodbladeBtn" type="button"><svg class="mode-emblem" viewBox="0 0 56 56" aria-hidden="true">
-        <path d="m28 2 21 13v23L28 54 7 38V15Z" fill="#35121f" stroke="#cb8c77" stroke-width="1.6"/>
-        <path d="m28 6 17 11v19L28 49 11 36V17Z" fill="none" stroke="#794454"/>
-        <g transform="rotate(25 28 28)">
-          <path d="m28 8 4 10-2 16h-4l-2-16Z" fill="#ffe5ca"/>
-          <path d="m28 8 4 10-2 16h-2Z" fill="#c87679"/>
-          <path d="m19 31 9 3 9-3-1 4-6 2v7h-4v-7l-6-2Z" fill="#e1ad73"/>
-          <circle cx="28" cy="45" r="2.8" fill="#e1ad73"/>
-        </g>
-      </svg>
-      <span class="bloodblade-text"><strong>BLOODBLADE</strong><small id="bloodbladeSub">Blood Tributes · mandatory sacrifice</small></span><span class="mode-arrow" aria-hidden="true"></span></button><button class="btn" id="cancelBloodblade" hidden type="button">Cancel</button></div><section class="computer-panel" aria-label="Play against computer">
+  <section class="computer-panel" aria-label="Play against computer">
     <div class="computer-head">
       <div>
         <div class="computer-title">PLAY VS COMPUTER</div>
@@ -2626,7 +2628,7 @@ class KingsfallChess extends ChessV14 {
 window.Chess = KingsfallChess;
 // Load the existing classic-script sections in their original order.
 // Each file uses the same global scope; the server chess adapter is ready first.
-const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=leaguecrest1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
+const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=vip-games-room1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=auto-country1","assets/push-onboarding.js?v=onboard1","assets/chat.js","assets/i18n.js?v=fa1"];
 for (const source of kingsfallChunks) {
   await new Promise((resolve, reject) => {
     const script = document.createElement("script");
