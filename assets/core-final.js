@@ -568,52 +568,30 @@ $("avatarThumb").onclick = async function(){
   $("profileName").value = (user.user_metadata && user.user_metadata.username) || "";
   $("profileFlagEnabled").checked = kfShowsFlag(user.user_metadata || {});
   var avatarUrl = user.user_metadata ? user.user_metadata.avatar_url : null;
-  $("avatarPreview").src = avatarUrl || "";
-  $("avatarPreview").hidden = !avatarUrl;
+  $("avatarPreview").src = avatarUrl || defaultAvatar();
   $("avatarFile").value = "";
   $("profileDialog").showModal();
 };
 $("profileClose").onclick = function(){ $("profileDialog").close(); };
-$("avatarFile").addEventListener("change", function(){
-  var f = $("avatarFile").files ? $("avatarFile").files[0] : null;
-  if(!f) return;
-  var allowed = ["image/jpeg","image/png","image/webp"];
-  if(allowed.indexOf(f.type) === -1 || f.size > 5*1024*1024){
+$("changeAvatar").onclick = function(){ $("avatarFile").click(); };
+$("avatarFile").addEventListener("change", async function(){
+  var file = this.files[0];
+  this.value = "";
+  if(!sb || !file) return;
+  var btn = $("changeAvatar");
+  if(btn.disabled) return;
+  if(!["image/jpeg","image/png","image/webp"].includes(file.type) || file.size > 5*1024*1024){
     $("profileMessage").textContent = "Choose a JPG, PNG or WebP image up to 5 MB.";
     $("profileMessage").classList.add("error");
-    $("avatarFile").value = "";
     return;
   }
-  $("profileMessage").textContent = "";
-  $("profileMessage").classList.remove("error");
-  var reader = new FileReader();
-  reader.onload = function(){
-    $("avatarPreview").src = reader.result;
-    $("avatarPreview").hidden = false;
-  };
-  reader.readAsDataURL(f);
-});
-$("uploadAvatar").onclick = async function(){
-  if(!sb) return;
-  var file = $("avatarFile").files ? $("avatarFile").files[0] : null;
-  if(!file){
-    $("profileMessage").textContent = "Choose a photo first.";
-    $("profileMessage").classList.add("error");
-    return;
-  }
-  var userRes = await sb.auth.getUser();
-  var user = userRes.data ? userRes.data.user : null;
-  if(userRes.error || !user){
-    $("profileMessage").textContent = "Please sign in again.";
-    $("profileMessage").classList.add("error");
-    return;
-  }
-  var btn = $("uploadAvatar");
   btn.disabled = true;
-  btn.textContent = "Uploading…";
   $("profileMessage").textContent = "Uploading photo…";
   $("profileMessage").classList.remove("error");
   try{
+    var userRes = await sb.auth.getUser();
+    var user = userRes.data && userRes.data.user;
+    if(userRes.error || !user) throw new Error("Please sign in again.");
     var ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
     var path = user.id + "/avatar." + ext;
     var upRes = await sb.storage.from("avatars").upload(path, file, {upsert: true, contentType: file.type, cacheControl: "3600"});
@@ -632,9 +610,8 @@ $("uploadAvatar").onclick = async function(){
     $("profileMessage").classList.add("error");
   } finally {
     btn.disabled = false;
-    btn.textContent = "Upload photo";
   }
-};
+});
 $("profileForm").addEventListener("submit", async function(e){
   e.preventDefault();
   if(!sb) return;
