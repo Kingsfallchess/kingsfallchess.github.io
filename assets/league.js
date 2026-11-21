@@ -6,6 +6,7 @@
     const leagueCtaStyle = document.createElement('style');
     leagueCtaStyle.id = 'kfLeagueCtaStyle';
     leagueCtaStyle.textContent = `/* Kingsfall league registration call-to-action — scoped to the league panel. */
+#vipPanelLeague .kf-league-population{margin:0 0 16px;padding:12px 15px;border:1px solid #967647;border-radius:12px;background:#291723;color:#ffe2a5;font-weight:700;text-align:start}
 #vipPanelLeague > button{
   position:relative;display:inline-flex;align-items:center;justify-content:center;gap:11px;
   width:min(100%,290px);min-height:58px;margin:18px 0 8px;padding:14px 22px;
@@ -219,12 +220,16 @@
 `;
     document.head.appendChild(leagueCtaStyle);
   }
+  const population = document.createElement('p');
+  population.className = 'kf-league-population';
+  population.setAttribute('role', 'status');
+  population.hidden = true;
   const message = document.createElement('p');
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'kf-league-cta';
   message.setAttribute('role', 'status');
-  panel.replaceChildren(message, button);
+  panel.replaceChildren(population, message, button);
   const alerts = document.createElement('a');
   const alertStatus = document.createElement('p');
   alertStatus.setAttribute('role', 'status');
@@ -986,9 +991,27 @@
     badge.textContent = label('Level ' + formatted, 'سطح ' + formatted);
     button.appendChild(badge);
   }
+  async function showLevelPopulation(request) {
+    let caption;
+    try {
+      const { data, error } = await sb.rpc('kf_league_level_population');
+      if (error || !data || !Number.isInteger(data.total)) throw Error();
+      caption = label(
+        'Players at level ' + data.level + ': ' + data.total + ' (including you)',
+        'بازیکنان سطح ' + data.level + ' با احتساب خودت: ' + data.total + ' نفر'
+      );
+    } catch {
+      caption = label('Player count unavailable.', 'تعداد بازیکنان فعلاً در دسترس نیست.');
+    }
+    if (request !== sequence || panel.hidden) return;
+    population.dir = window.kfGetLanguage?.() === 'fa' ? 'rtl' : 'ltr';
+    population.textContent = caption;
+    population.hidden = false;
+  }
   async function refresh(action = 'status') {
     stopLeagueCountdowns();
     const request = ++sequence;
+    population.hidden = true;
     availability.replaceChildren();
     alerts.hidden = true;
     alertStatus.textContent = '';
@@ -1005,6 +1028,7 @@
         button.textContent = label('Sign in', 'ورود');
         button.onclick = () => openAuth('signin');
       } else {
+        void showLevelPopulation(request);
         const reply = await sb.rpc('kf_league_registration', { action });
         if (request !== sequence) return;
         if (reply.error) throw reply.error;
