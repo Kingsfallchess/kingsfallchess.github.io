@@ -1689,7 +1689,10 @@ async function loadAdminVipMembers(){
   members.forEach(function(member){
    var row = document.createElement("div");
    row.className = "admin-user";
-   row.textContent = member.name;
+   var days = member.days_remaining;
+   var duration = days === null ? (fa ? "دائمی" : "Permanent") :
+     (fa ? days.toLocaleString("fa-IR") + " روز باقی‌مانده" : days + (days === 1 ? " day left" : " days left"));
+   row.textContent = member.name + " · " + duration;
    list.append(row);
   });
  } catch {
