@@ -20,35 +20,61 @@ $("themeToggle").onclick = function(){
 /* ===== NAV / PAGES ===== */
 var vipNavigationVersion = 0;
 var vipSessionId = null;
-function hasVipMembership(user){
-  return !!user && !user.is_anonymous && user.app_metadata?.vip === true;
+var vipExpiryTimer;
+function vipText(en, fa){
+  return window.kfGetLanguage?.() === "fa" ? fa : en;
 }
-async function openVerifiedVipPage(request){
-  const fa = window.kfGetLanguage?.() === "fa";
-  const visitor = currentUser;
-  if (!visitor || visitor.is_anonymous) {
-    toast(fa ? "برای ورود به بخش VIP با حساب عضو VIP وارد شوید." : "Sign in with a VIP account to open this section.", "info");
+function showVipOffer(){
+  vipSessionId = currentUser?.id || null;
+  $("vipOfferTitle").textContent = vipText("One-month VIP subscription", "اشتراک یک‌ماههٔ VIP");
+  $("vipOfferPrice").textContent = vipText("0 tomans", "۰ تومان");
+  $("vipActivate").textContent = vipText("Activate one month of VIP", "فعال‌سازی اشتراک یک‌ماهه");
+  $("vipActivate").disabled = false;
+  $("vipOfferBack").textContent = vipText("Back", "بازگشت");
+  displayPage("vipOffer");
+}
+async function openVerifiedVipPage(request, activate = false){
+  const playerId = currentUser?.id;
+  if (!playerId || currentUser.is_anonymous) {
+    if (activate) openAuth("signin");
+    else showVipOffer();
     return;
   }
+  const started = performance.now();
   try {
-    const {data,error} = await sb.auth.getUser();
-    if (request !== vipNavigationVersion || visitor.id !== currentUser?.id) return;
-    if (error || data.user?.id !== visitor.id) throw Error();
-    if (!hasVipMembership(data.user)) {
-      toast(fa ? "این بخش فقط برای اعضای VIP است." : "This section is for VIP members only.", "info");
-      return;
-    }
-    vipSessionId = visitor.id;
+    const {data,error} = await sb.rpc("kf_monthly_vip", {activate});
+    if (request !== vipNavigationVersion || playerId !== currentUser?.id) return;
+    if (error || typeof data?.active !== "boolean") throw Error();
+    if (!data.active) { showVipOffer(); return; }
+    vipSessionId = playerId;
     displayPage("vip");
+    if (data.remaining_ms !== null) {
+      const delay = Math.max(0, data.remaining_ms - (performance.now() - started));
+      vipExpiryTimer = setTimeout(function(){
+        showPage("home");
+        showPage("vip");
+      }, Math.min(2147483647, delay));
+    }
+    if (activate) toast(vipText("Your VIP subscription is active.", "اشتراک VIP شما فعال شد."), "info");
   } catch {
-    if (request === vipNavigationVersion) toast(fa ? "بررسی عضویت ممکن نشد. دوباره تلاش کنید." : "Could not verify VIP membership. Please try again.", "error");
+    if (request === vipNavigationVersion) toast(vipText("Could not verify your subscription. Please try again.", "بررسی اشتراک ممکن نشد. دوباره تلاش کنید."), "error");
+  } finally {
+    if (request === vipNavigationVersion && $("vipActivate")) $("vipActivate").disabled = false;
   }
 }
+if ($("vipActivate")) {
+  $("vipActivate").onclick = function(){
+    if (!currentUser || currentUser.is_anonymous) { openAuth("signin"); return; }
+    this.disabled = true;
+    openVerifiedVipPage(++vipNavigationVersion, true);
+  };
+  $("vipOfferBack").onclick = function(){ showPage("home"); };
+}
 sb?.auth.onAuthStateChange(function(event, session){
-  if (event === "SIGNED_OUT" || (vipSessionId && (session?.user?.id !== vipSessionId || !hasVipMembership(session?.user)))) {
+  if (event === "SIGNED_OUT" || (vipSessionId && session?.user?.id !== vipSessionId)) {
     ++vipNavigationVersion;
     vipSessionId = null;
-    if ($("pageVip").classList.contains("active")) showPage("home");
+    if ($("pageVip").classList.contains("active") || $("pageVipOffer")?.classList.contains("active")) showPage("home");
   }
 });
 document.addEventListener("visibilitychange", function(){
@@ -59,6 +85,7 @@ document.addEventListener("visibilitychange", function(){
 });
 function showPage(name){
   const request = ++vipNavigationVersion;
+  clearTimeout(vipExpiryTimer);
   if (name === "vip") return openVerifiedVipPage(request);
   vipSessionId = null;
   displayPage(name);
