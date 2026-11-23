@@ -27,7 +27,10 @@ function vipText(en, fa){
 function showVipOffer(){
   vipSessionId = currentUser?.id || null;
   $("vipOfferTitle").textContent = vipText("One-month VIP subscription", "اشتراک یک‌ماههٔ VIP");
-  $("vipOfferPrice").textContent = vipText("0 tomans", "۰ تومان");
+  const country = currentUser?.user_metadata?.registration_country;
+  $("vipOfferPrice").textContent = kfIsCountryCode(country)
+    ? (country === "IR" ? "0 تومن" : "0$")
+    : "0";
   $("vipActivate").textContent = vipText("Activate one month of VIP", "فعال‌سازی اشتراک یک‌ماهه");
   $("vipActivate").disabled = false;
   $("vipOfferBack").textContent = vipText("Back", "بازگشت");
