@@ -2189,6 +2189,14 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
 <div class="admin-stats"><button id="adminMonitoringOpen" type="button" class="admin-stat" style="text-align:left;color:inherit;cursor:pointer"><span>📊 Server Monitoring</span><strong>›</strong></button></div>
 <details id="adminVipCard" class="admin-section">
  <summary class="admin-stat" style="cursor:pointer;color:var(--gold2);font-weight:700">VIP</summary>
+ <form id="adminVipGrant" style="display:grid;gap:9px;margin:12px 0 18px">
+  <label for="vipGrantPlayer" id="vipGrantPlayerLabel">Username, email or player ID</label>
+  <input class="admin-search" id="vipGrantPlayer" type="text" required autocomplete="off" autocapitalize="none" spellcheck="false">
+  <label for="vipGrantPlan" id="vipGrantPlanLabel">Subscription</label>
+  <select class="admin-search" id="vipGrantPlan"><option value="month" id="vipGrantMonth">One month</option><option value="permanent" id="vipGrantPermanent">Permanent</option></select>
+  <button type="submit" id="vipGrantSubmit" class="btn gold">Activate VIP</button>
+  <span id="vipGrantStatus" role="status"></span>
+ </form>
  <div id="adminVipMembers" class="admin-users" aria-live="polite"></div>
 </details>
 <div class="admin-footnote">Administrative operations are verified by Supabase against the authenticated owner account.</div>
@@ -2659,7 +2667,7 @@ async function startKingsfall(){
     }
   }
   window.Chess = KingsfallChess;
-  const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=monthly-vip1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=admin-vip1","assets/push-onboarding.js?v=profile-push1","assets/chat.js","assets/i18n.js?v=fa1"];
+  const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=monthly-vip1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=vip-grants1","assets/push-onboarding.js?v=profile-push1","assets/chat.js","assets/i18n.js?v=fa1"];
   for(const source of kingsfallChunks) await loadScript(source);
 }
 const notice = document.getElementById("kfTabMessage");
