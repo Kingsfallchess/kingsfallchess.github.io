@@ -793,14 +793,14 @@
 
     const note = document.createElement('p');
     note.className = 'kf-league-time-note';
-    note.textContent = label('Times are shown in your local timezone · 15-minute increments.',
-      'ساعت‌ها به وقت محلی شما هستند · گام‌های ۱۵ دقیقه‌ای.');
+    note.textContent = label('Times are shown in your local timezone · 30-minute increments.',
+      'ساعت‌ها به وقت محلی شما هستند · گام‌های ۳۰ دقیقه‌ای.');
     timeCard.append(note);
     const timeRows = document.createElement('div');
     timeRows.className = 'kf-time-windows';
     timeCard.append(timeRows);
-    const stepMs = 15 * 60 * 1000;
-    const base = Math.ceil((Date.parse(group.deadline) + stepMs) / stepMs) * stepMs;
+    const stepMs = 30 * 60 * 1000;
+    const base = Math.ceil((Date.parse(group.deadline) + 15 * 60 * 1000) / stepMs) * stepMs;
     const last = Date.parse(group.deadline) + 24 * 60 * 60 * 1000;
     const maxStep = Math.max(1, Math.floor((last - base) / stepMs));
     const locale = window.kfGetLanguage?.() === 'fa' ? 'fa-IR' : 'en-GB';
@@ -811,11 +811,11 @@
     let ranges = (Array.isArray(group.windows) ? group.windows : []).map(window => {
       const a = Date.parse(window.start), b = Date.parse(window.end);
       if (!Number.isFinite(a + b)) return null;
-      const s = clamp(Math.round((a - base) / stepMs), 0, maxStep - 1);
-      const e = clamp(Math.round((b - base) / stepMs), s + 1, maxStep);
+      const s = (a - base) / stepMs;
+      const e = (b - base) / stepMs;
       return {s,e};
     }).filter(Boolean);
-    if (!ranges.length) ranges = [{s:0,e:Math.min(maxStep,4)}];
+    if (!ranges.length) ranges = [{s:0,e:Math.min(maxStep,2)}];
 
     function redrawRanges() {
       timeRows.replaceChildren();
@@ -872,17 +872,18 @@
           endLabel.textContent = label('To','تا');
           startChip.append(startLabel,document.createTextNode(dateFmt.format(at(range.s))));
           endChip.append(endLabel,document.createTextNode(dateFmt.format(at(range.e))));
-          const pct = n => (100 * n / maxStep) + '%';
+          const pct = n => (100 * clamp(n,0,maxStep) / maxStep) + '%';
           fill.style.left = pct(range.s);
-          fill.style.width = (100 * (range.e - range.s) / maxStep) + '%';
+          fill.style.width = (100 * (clamp(range.e,0,maxStep) - clamp(range.s,0,maxStep)) / maxStep) + '%';
           startHandle.style.left = pct(range.s);
           endHandle.style.left = pct(range.e);
           startHandle.setAttribute('aria-valuetext', dateFmt.format(at(range.s)));
           endHandle.setAttribute('aria-valuetext', dateFmt.format(at(range.e)));
         };
         const update = (edge, value) => {
-          if (edge === 'start') range.s = clamp(value,0,range.e - 1);
-          else range.e = clamp(value,range.s + 1,maxStep);
+          if ((edge === 'start' && range.e <= 0) || (edge === 'end' && range.s >= maxStep)) return;
+          if (edge === 'start') range.s = clamp(Math.round(value),0,Math.max(0, Math.ceil(range.e) - 1));
+          else range.e = clamp(Math.round(value),Math.min(maxStep, Math.floor(range.s) + 1),maxStep);
           draw();
         };
         const fromX = x => {
@@ -906,7 +907,7 @@
           handle.addEventListener('pointerup',stop);
           handle.addEventListener('pointercancel',stop);
           handle.addEventListener('keydown', event => {
-            const delta = {ArrowLeft:-1,ArrowRight:1,PageDown:-4,PageUp:4}[event.key];
+            const delta = {ArrowLeft:-1,ArrowRight:1,PageDown:-2,PageUp:2}[event.key];
             if (delta === undefined && event.key !== 'Home' && event.key !== 'End') return;
             event.preventDefault();
             const current = edge === 'start' ? range.s : range.e;
@@ -929,7 +930,7 @@
     add.textContent = label('＋ Add another time window','＋ افزودن بازهٔ زمانی دیگر');
     add.onclick = () => {
       if (ranges.length >= 96) return;
-      const width = Math.min(maxStep,4);
+      const width = Math.min(maxStep,2);
       let s = 0;
       while (s + width <= maxStep && ranges.some(r => s < r.e && s + width > r.s)) s += width;
       if (s + width > maxStep) s = Math.max(0,maxStep - width);
