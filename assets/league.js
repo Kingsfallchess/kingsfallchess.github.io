@@ -1008,6 +1008,37 @@
     population.textContent = caption;
     population.hidden = false;
   }
+  function renderWaitingGroup(roster) {
+    const header = document.createElement('div');
+    header.className = 'kf-league-standings-header';
+    const title = document.createElement('h3');
+    title.textContent = label('Your group', 'گروه تو') + ' (' + roster.length + '/10)';
+    const reload = document.createElement('button');
+    reload.type = 'button';
+    reload.className = 'kf-league-refresh-hours';
+    reload.textContent = label('Refresh', 'به‌روزرسانی');
+    reload.onclick = () => refresh();
+    header.append(title, reload);
+    const table = document.createElement('table');
+    table.className = 'kf-league-standings';
+    table.setAttribute('aria-label', title.textContent);
+    const body = table.createTBody();
+    for (let index = 0; index < 10; index++) {
+      const seat = roster[index];
+      const row = body.insertRow();
+      row.insertCell().textContent = String(index + 1);
+      const name = row.insertCell();
+      name.style.overflowWrap = 'anywhere';
+      if (seat) {
+        name.textContent = (seat.name || label('Player', 'بازیکن')) + (seat.mine ? label(' (you)', ' (تو)') : '');
+        if (seat.mine) name.style.fontWeight = 'bold';
+      } else {
+        name.textContent = label('Open spot', 'جای خالی');
+        name.style.opacity = '0.65';
+      }
+    }
+    availability.append(header, table);
+  }
   async function refresh(action = 'status') {
     stopLeagueCountdowns();
     const request = ++sequence;
@@ -1056,7 +1087,10 @@
         }
         const { joined, level, position } = reply.data;
         button.classList.toggle('is-secondary', joined);
-        if(joined) monitorLeague();
+        if (joined) {
+          if (Array.isArray(reply.data.roster)) renderWaitingGroup(reply.data.roster);
+          monitorLeague();
+        }
         panel.dir = window.kfGetLanguage?.() === 'fa' ? 'rtl' : 'ltr';
         message.textContent = joined
           ? label('Level ' + level + ' · Your place on the waiting list: ' + position + '. The 24-hour clock has not started.', 'سطح ' + level + ' · جایگاهت در صف پیش‌ثبت‌نام: ' + position + '. هنوز مهلت ۲۴ ساعته شروع نشده.')
