@@ -1915,6 +1915,14 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
       <button class="btn" id="signOut" hidden>Sign Out</button>
     </div>
   </header>
+  <div class="page" id="pageVipOffer">
+    <section class="vip-studio" aria-labelledby="vipOfferTitle" style="max-width:440px;margin:24px auto;padding:24px">
+      <div class="vip-back-row"><button class="btn" id="vipOfferBack" type="button">Back</button></div>
+      <h2 id="vipOfferTitle">اشتراک یک‌ماههٔ VIP</h2>
+      <p id="vipOfferPrice" style="font-size:1.8rem;font-weight:700;color:var(--gold2)">۰ تومان</p>
+      <button class="btn gold" id="vipActivate" type="button">فعال‌سازی اشتراک یک‌ماهه</button>
+    </section>
+  </div>
   <div class="page" id="pageVip">
     <section class="vip-studio">
       <div class="vip-back-row"><button class="btn" id="vipBack" type="button">← Back</button></div>
@@ -2651,7 +2659,7 @@ async function startKingsfall(){
     }
   }
   window.Chess = KingsfallChess;
-  const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=vip-access1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=admin-vip1","assets/push-onboarding.js?v=profile-push1","assets/chat.js","assets/i18n.js?v=fa1"];
+  const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=vip-games-tabs1","assets/core-game.js?v=monthly-vip1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=admin-vip1","assets/push-onboarding.js?v=profile-push1","assets/chat.js","assets/i18n.js?v=fa1"];
   for(const source of kingsfallChunks) await loadScript(source);
 }
 const notice = document.getElementById("kfTabMessage");
