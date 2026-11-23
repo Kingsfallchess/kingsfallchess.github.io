@@ -9,7 +9,7 @@ var vipBoardThemes = [
   {id:"midnight",name:"Midnight",light:"#adc1d9",dark:"#243d60"},
   {id:"rose",name:"Rose Gold",light:"#f4dacb",dark:"#af6e78"},
   {id:"sapphire",name:"Sapphire",light:"#dce8ff",dark:"#3f5fa8"},
-  {id:"bluepomegranate",name:"Blue & Pomegranate",light:"#123b80",dark:"#871b3b"},
+  {id:"bluepomegranate",name:"Gray & Gold",light:"#dec48a",dark:"#68717d"},
   {id:"skylemon",name:"Sky Blue & Lemon",light:"#71cdf5",dark:"#f5e84b"},
   {id:"forest",name:"Forest",light:"#dce8d1",dark:"#4a6b3f"},
   {id:"lava",name:"Lava",light:"#f2d0c2",dark:"#8b3a2f"},
@@ -30,7 +30,7 @@ var vipPieceColors = [
   {id:"obsidian",name:"Obsidian",white:"#e6eef5",black:"#172333"},
   {id:"silver",name:"Silver",white:"#f5f7fa",black:"#6e7b8a"},
   {id:"crimson",name:"Crimson",white:"#ffe7e7",black:"#7a1f2b"},
-  {id:"bluepomegranate",name:"Blue & Pomegranate",white:"#123b80",black:"#871b3b"},
+  {id:"bluepomegranate",name:"Gray & Gold",white:"#ffda78",black:"#434a54"},
   {id:"skylemon",name:"Sky Blue & Lemon",white:"#71cdf5",black:"#f5e84b"},
   {id:"jade",name:"Jade",white:"#eafff2",black:"#1f6b57"},
   {id:"frost",name:"Frost",white:"#eefbff",black:"#4f6d7a"}
@@ -48,7 +48,7 @@ function vipColors(colorId,white){
     obsidian:{white:["#e6eef5","#526779"],black:["#172333","#aec5d6"]},
     silver:{white:["#f5f7fa","#7d8794"],black:["#6e7b8a","#d8dee6"]},
     crimson:{white:["#ffe7e7","#9a4450"],black:["#7a1f2b","#f0b7bf"]},
-    bluepomegranate:{white:["#123b80","#9fc6ff"],black:["#871b3b","#ffadc4"]},
+    bluepomegranate:{white:["#ffda78","#614719"],black:["#434a54","#e0e5eb"]},
     skylemon:{white:["#71cdf5","#165c8c"],black:["#f5e84b","#887700"]},
     jade:{white:["#eafff2","#4d8e73"],black:["#1f6b57","#b8ecd7"]},
     frost:{white:["#eefbff","#7aa2b5"],black:["#4f6d7a","#d7eef7"]}
