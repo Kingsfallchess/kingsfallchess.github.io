@@ -18,7 +18,52 @@ $("themeToggle").onclick = function(){
 };
 
 /* ===== NAV / PAGES ===== */
+var vipNavigationVersion = 0;
+var vipSessionId = null;
+function hasVipMembership(user){
+  return !!user && !user.is_anonymous && user.app_metadata?.vip === true;
+}
+async function openVerifiedVipPage(request){
+  const fa = window.kfGetLanguage?.() === "fa";
+  const visitor = currentUser;
+  if (!visitor || visitor.is_anonymous) {
+    toast(fa ? "برای ورود به بخش VIP با حساب عضو VIP وارد شوید." : "Sign in with a VIP account to open this section.", "info");
+    return;
+  }
+  try {
+    const {data,error} = await sb.auth.getUser();
+    if (request !== vipNavigationVersion || visitor.id !== currentUser?.id) return;
+    if (error || data.user?.id !== visitor.id) throw Error();
+    if (!hasVipMembership(data.user)) {
+      toast(fa ? "این بخش فقط برای اعضای VIP است." : "This section is for VIP members only.", "info");
+      return;
+    }
+    vipSessionId = visitor.id;
+    displayPage("vip");
+  } catch {
+    if (request === vipNavigationVersion) toast(fa ? "بررسی عضویت ممکن نشد. دوباره تلاش کنید." : "Could not verify VIP membership. Please try again.", "error");
+  }
+}
+sb?.auth.onAuthStateChange(function(event, session){
+  if (event === "SIGNED_OUT" || (vipSessionId && (session?.user?.id !== vipSessionId || !hasVipMembership(session?.user)))) {
+    ++vipNavigationVersion;
+    vipSessionId = null;
+    if ($("pageVip").classList.contains("active")) showPage("home");
+  }
+});
+document.addEventListener("visibilitychange", function(){
+  if (!document.hidden && $("pageVip").classList.contains("active")) {
+    showPage("home");
+    showPage("vip");
+  }
+});
 function showPage(name){
+  const request = ++vipNavigationVersion;
+  if (name === "vip") return openVerifiedVipPage(request);
+  vipSessionId = null;
+  displayPage(name);
+}
+function displayPage(name){
   if(name === "admin" && window.kfIsNativeApp) return;
   if(window.kfIsNativeApp) document.body.classList.toggle("kf-home-active", name === "home");
   document.querySelectorAll(".page").forEach(function(p){ p.classList.remove("active"); });
