@@ -645,7 +645,7 @@
     const studio = document.createElement('div');
     studio.className = 'kf-league-studio';
     studio.dir = window.kfGetLanguage?.() === 'fa' ? 'rtl' : 'ltr';
-    availability.append(studio);
+    table.after(studio);
 
     function makeCard(number, en, fa, hintEn, hintFa) {
       const card = document.createElement('section');
@@ -673,7 +673,8 @@
     let chosenPieces = vipPieceStyles.some(t => t.id === initialStyle.pieces) ? initialStyle.pieces : 'classic';
     let chosenColor = vipPieceColors.some(t => t.id === initialStyle.color) ? initialStyle.color : 'standard';
 
-    const modeCard = makeCard(1, 'Game mode', 'نوع بازی', 'Choose the game played when you host', 'نوع بازی در زمان میزبانی شما');
+    const timeCard = makeCard(1, 'Please select the times when you can play', 'لطفاً ساعت‌هایی را که می‌توانید بازی کنید تعیین کنید.', 'Drag each end of the timeline to choose a time range', 'ابتدا و انتهای نوار را بکش تا بازه انتخاب شود');
+    const modeCard = makeCard(2, 'Game mode', 'نوع بازی', 'Choose the game played when you host', 'نوع بازی در زمان میزبانی شما');
     const modeGrid = document.createElement('div');
     modeGrid.className = 'kf-league-mode-grid';
     modeCard.append(modeGrid);
@@ -702,7 +703,7 @@
     }
     drawModes();
 
-    const boardCard = makeCard(2, 'Choose a board', 'انتخاب تخته', 'Tap a miniature board to select it', 'روی تصویر کوچک تخته بزن');
+    const boardCard = makeCard(3, 'Choose a board', 'انتخاب تخته', 'Tap a miniature board to select it', 'روی تصویر کوچک تخته بزن');
     const boardGrid = document.createElement('div');
     boardGrid.className = 'kf-league-board-grid';
     boardCard.append(boardGrid);
@@ -736,7 +737,7 @@
     }
     drawBoards();
 
-    const pieceCard = makeCard(3, 'Piece design', 'شکل مهره‌ها', 'Preview the actual piece set', 'پیش‌نمایش ظاهر واقعی مهره‌ها');
+    const pieceCard = makeCard(4, 'Piece design', 'شکل مهره‌ها', 'Preview the actual piece set', 'پیش‌نمایش ظاهر واقعی مهره‌ها');
     const pieceGrid = document.createElement('div');
     pieceGrid.className = 'kf-league-style-grid';
     pieceCard.append(pieceGrid);
@@ -762,7 +763,7 @@
     }
     drawPieces();
 
-    const colorCard = makeCard(4, 'Piece colors', 'رنگ مهره‌ها', 'Select a matching palette', 'ترکیب رنگ دلخواه را انتخاب کن');
+    const colorCard = makeCard(5, 'Piece colors', 'رنگ مهره‌ها', 'Select a matching palette', 'ترکیب رنگ دلخواه را انتخاب کن');
     const colorGrid = document.createElement('div');
     colorGrid.className = 'kf-league-color-grid';
     colorCard.append(colorGrid);
@@ -790,7 +791,6 @@
       colorGrid.append(btn);
     });
 
-    const timeCard = makeCard(5, 'Available playing times', 'ساعت‌های آزاد بازی', 'Drag each end of the timeline to choose a time range', 'ابتدا و انتهای نوار را بکش تا بازه انتخاب شود');
     const note = document.createElement('p');
     note.className = 'kf-league-time-note';
     note.textContent = label('Times are shown in your local timezone · 15-minute increments.',
