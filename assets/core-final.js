@@ -1671,8 +1671,35 @@ function kfRefreshVisibleAdminSecurity(){
   loadAdminPlayerReports();
  }
 }
+var adminVipRequest = 0;
+async function loadAdminVipMembers(){
+ var card = $("adminVipCard"), list = $("adminVipMembers"), request = ++adminVipRequest;
+ if (!card || !card.open) return;
+ list.replaceChildren();
+ if (!currentUser || currentUser.id !== adminOwnerId) return;
+ var fa = window.kfGetLanguage?.() === "fa";
+ list.textContent = fa ? "در حال دریافت اعضا…" : "Loading members…";
+ try {
+  var result = await sb.rpc("kf_admin_vip_members");
+  if (request !== adminVipRequest || !card.open || currentUser?.id !== adminOwnerId) return;
+  if (result.error || !Array.isArray(result.data)) throw Error();
+  var members = result.data;
+  list.replaceChildren();
+  if (!members.length) list.textContent = fa ? "هنوز عضو VIP ثبت نشده است." : "No VIP members yet.";
+  members.forEach(function(member){
+   var row = document.createElement("div");
+   row.className = "admin-user";
+   row.textContent = member.name;
+   list.append(row);
+  });
+ } catch {
+  if (request === adminVipRequest) list.textContent = fa ? "دریافت فهرست ممکن نشد. دوباره تلاش کنید." : "Could not load VIP members. Please refresh.";
+ }
+}
+if ($("adminVipCard")) $("adminVipCard").addEventListener("toggle", loadAdminVipMembers);
 async function loadAdminPanel(){
  if(!currentUser||currentUser.id!==adminOwnerId)return;
+ if ($("adminVipCard")?.open) loadAdminVipMembers();
  kfRefreshVisibleAdminSecurity();
  $("adminUsers").innerHTML='<div class="admin-loading">Loading registered users…</div>';
  $("adminFeatures").innerHTML='<div class="admin-loading">Loading features…</div>';
