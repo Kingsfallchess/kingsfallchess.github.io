@@ -1700,6 +1700,39 @@ async function loadAdminVipMembers(){
  }
 }
 if ($("adminVipCard")) $("adminVipCard").addEventListener("toggle", loadAdminVipMembers);
+if ($("adminVipGrant")) {
+ function vipGrantText(en, fa){return window.kfGetLanguage?.() === "fa" ? fa : en;}
+ $("adminVipCard").addEventListener("toggle",function(){
+  $("vipGrantPlayerLabel").textContent=vipGrantText("Username, email or player ID","نام کاربری، ایمیل یا شناسهٔ بازیکن");
+  $("vipGrantPlanLabel").textContent=vipGrantText("Subscription","مدت اشتراک");
+  $("vipGrantMonth").textContent=vipGrantText("One month","یک‌ماهه");
+  $("vipGrantPermanent").textContent=vipGrantText("Permanent","دائمی");
+  $("vipGrantSubmit").textContent=vipGrantText("Activate VIP","فعال‌سازی VIP");
+ });
+ $("adminVipGrant").addEventListener("submit",async function(event){
+  event.preventDefault();
+  var submit=$("vipGrantSubmit"),status=$("vipGrantStatus");
+  if(submit.disabled || currentUser?.id!==adminOwnerId)return;
+  var player=$("vipGrantPlayer").value.trim(),plan=$("vipGrantPlan").value;
+  if(!player){$("vipGrantPlayer").focus();return;}
+  submit.disabled=true;
+  status.textContent="";
+  try {
+   var result=await sb.rpc("kf_admin_grant_vip",{player,plan});
+   if(result.error)throw result.error;
+   status.textContent=result.data+" · "+(plan==="month"?vipGrantText("Monthly VIP activated","اشتراک یک‌ماهه فعال شد"):vipGrantText("Permanent VIP activated","اشتراک دائمی فعال شد"));
+   this.reset();
+   await loadAdminVipMembers();
+  } catch(error){
+   var messages={
+    "Player not found":["Player not found.","بازیکن پیدا نشد."],
+    "Ambiguous player":["Multiple matches. Enter the player ID.","چند حساب پیدا شد. شناسهٔ بازیکن را وارد کنید."],
+    "Already permanent":["This player already has permanent VIP.","این بازیکن از قبل VIP دائمی دارد."]
+   };
+   status.textContent=vipGrantText(...(messages[error.message]||["Could not activate VIP. Please retry.","فعال‌سازی ممکن نشد. دوباره تلاش کنید."]));
+  } finally {submit.disabled=false;}
+ });
+}
 async function loadAdminPanel(){
  if(!currentUser||currentUser.id!==adminOwnerId)return;
  if ($("adminVipCard")?.open) loadAdminVipMembers();
