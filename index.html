@@ -2669,8 +2669,6 @@ async function startKingsfall(){
   window.Chess = KingsfallChess;
   const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=gray-gold1","assets/core-game.js?v=vip-currency1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=vip-grants1","assets/push-onboarding.js?v=profile-push1","assets/chat.js","assets/i18n.js?v=fa1"];
   for(const source of kingsfallChunks) await loadScript(source);
-  // Optional native background music never blocks game startup.
-  if(window.kfIsNativeApp) loadScript("assets/game-music.js?v=1").catch(()=>{});
 }
 const notice = document.getElementById("kfTabMessage");
 const retry = document.getElementById("kfTabRetry");
