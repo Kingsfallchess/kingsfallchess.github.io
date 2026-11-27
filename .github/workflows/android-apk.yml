@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - 'android-app/**'
+      - 'assets/music/**'
       - '.github/workflows/android-apk.yml'
   push:
     branches:
       - main
       - feature/android-kingsfall-app
+      - release/bazaar-1.4.0
     paths:
       - 'android-app/**'
       - '.github/workflows/android-apk.yml'
@@ -37,5 +39,25 @@ jobs:
         with:
           name: KingsfallChess-Android-debug
           path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Assemble unsigned release APK
+        working-directory: android-app
+        run: gradle :app:assembleRelease --no-daemon
+      - name: Check bundled music
+        run: |
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          path = next(Path("android-app/app/build/outputs/apk/release").glob("*.apk"))
+          with zipfile.ZipFile(path) as z:
+              tracks = [i for i in z.infolist() if i.filename.startswith("assets/music/") and i.filename.endswith(".mp3")]
+              assert len(tracks) == 13, len(tracks)
+              assert all(i.compress_type == zipfile.ZIP_STORED and i.file_size > 1024 for i in tracks)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KingsfallChess-unsigned-release
+          path: android-app/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
