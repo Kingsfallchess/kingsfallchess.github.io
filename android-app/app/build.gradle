@@ -11,8 +11,8 @@ android {
         applicationId 'com.kingsfallchess.app'
         minSdk 24
         targetSdk 35
-        versionCode 2
-        versionName '1.1.0'
+        versionCode 3
+        versionName '1.2.0'
     }
 
     compileOptions {
@@ -25,3 +25,29 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:33.16.0')
     implementation 'com.google.firebase:firebase-messaging'
 }
+
+/* Package only the approved playlist, with MP3 files stored uncompressed
+   so Android AssetManager.openFd can play them without copying or downloading. */
+def musicSource = rootProject.file('../assets/music')
+def bundledMusic = layout.buildDirectory.dir('generated/kfMusicAssets')
+def musicIds = ['moonlight','snowfall','undertow','sleep','friday-morning',
+    'dream-culture','meditation-01','meditation-02','clear-air','morning',
+    'november-lullaby','a-visit-to-virginia','eastern-wind']
+tasks.register('bundleKingsfallMusic', Sync) {
+    from(musicSource) {
+        include musicIds.collect { it + '.mp3' }
+        include 'catalog.json'
+        into 'music'
+    }
+    into bundledMusic
+    doFirst {
+        musicIds.each { id ->
+            def track = new File(musicSource, id + '.mp3')
+            if (!track.isFile() || track.length() < 1024)
+                throw new GradleException("Missing bundled music: " + id)
+        }
+    }
+}
+android.sourceSets.main.assets.srcDir(bundledMusic)
+android.androidResources.noCompress += ['mp3']
+tasks.named('preBuild').configure { dependsOn tasks.named('bundleKingsfallMusic') }
