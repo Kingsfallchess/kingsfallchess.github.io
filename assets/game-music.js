@@ -57,7 +57,7 @@
   }
   let worker=null, pending=-1, next=-1, prepared=null, ctx=null, source=null, gain=null;
   let currentKey=null, currentTrack=-1, activeTrack=null, bag=[], offlineSerial=0, oldComputer=false;
-  let enabled=true;
+  let enabled=true, workerFailed=false, lastOfflineFen=null, offlineEnded=false;
   try { enabled=localStorage.getItem("kf_music_enabled_v1")!=="0"; } catch {}
   const buttons=[];
   function shuffle(){
@@ -67,6 +67,7 @@
   }
   function choose(){if(!bag.length)shuffle();return bag.pop();}
   function ensureWorker(){
+    if(workerFailed)return false;
     if(worker)return true;
     let url;
     try{
@@ -78,9 +79,9 @@
         if(e.data.id===next) prepared=e.data;
         if(currentKey&&currentTrack===e.data.id){activeTrack=e.data;play();}
       };
-      worker.onerror=()=>{pending=-1;worker?.terminate();worker=null;};
+      worker.onerror=()=>{pending=-1;worker?.terminate();worker=null;workerFailed=true;};
       return true;
-    }catch{worker=null;return false;}
+    }catch{worker=null;workerFailed=true;return false;}
     finally{if(url)URL.revokeObjectURL(url);}
   }
   function prepare(){
@@ -133,9 +134,15 @@
     const body=document.body;
     if(body.classList.contains("game-focus") && typeof onlineGame!=="undefined" && onlineGame?.id && onlineGame.status==="active")return "online:"+onlineGame.id;
     const isComputer=body.classList.contains("computer-mode") && document.getElementById("pageHome")?.classList.contains("active");
-    if(isComputer&&!oldComputer)offlineSerial++;
+    if(isComputer&&!oldComputer){offlineSerial++;lastOfflineFen=null;offlineEnded=false;}
     oldComputer=!!isComputer;
-    if(isComputer)return "computer:"+offlineSerial;
+    if(isComputer){
+      try{
+        const fen=game.fen();
+        if(fen!==lastOfflineFen){lastOfflineFen=fen;offlineEnded=game.game_over();}
+      }catch{}
+      if(!offlineEnded)return "computer:"+offlineSerial;
+    }
     return null;
   }
   function requestCurrent(){
@@ -160,7 +167,7 @@
   document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();else{sync();play();}});
   window.addEventListener("pagehide",()=>{stop();worker?.terminate();worker=null;pending=-1;});
   new MutationObserver(sync).observe(document.body,{attributes:true,attributeFilter:["class"]});
-  document.getElementById("new")?.addEventListener("click",()=>{if(oldComputer){offlineSerial++;setTimeout(sync,0);}});
+  document.getElementById("new")?.addEventListener("click",()=>{if(oldComputer){offlineSerial++;lastOfflineFen=null;offlineEnded=false;setTimeout(sync,0);}});
   // Read-only lifecycle checks; never hook move submission or clock functions.
   setInterval(sync,900);
   setTimeout(sync,1000);
