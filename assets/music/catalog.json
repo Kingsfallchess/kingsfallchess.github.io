@@ -4,119 +4,117 @@
     "artist": "Scott Buckley",
     "id": "moonlight",
     "page": "https://www.scottbuckley.com.au/library/moonlight/",
-    "download": "https://www.scottbuckley.com.au/library/wp-content/uploads/2022/07/Moonlight.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "moonlight.mp3",
+    "creditSite": "https://www.scottbuckley.com.au"
   },
   {
     "title": "Snowfall",
     "artist": "Scott Buckley",
     "id": "snowfall",
     "page": "https://www.scottbuckley.com.au/library/snowfall/",
-    "download": "https://www.scottbuckley.com.au/library/wp-content/uploads/2018/12/sb_snowfall.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "snowfall.mp3",
+    "creditSite": "https://www.scottbuckley.com.au"
   },
   {
     "title": "Undertow",
     "artist": "Scott Buckley",
     "id": "undertow",
     "page": "https://www.scottbuckley.com.au/library/undertow/",
-    "download": "https://www.scottbuckley.com.au/library/wp-content/uploads/2019/12/sb_undertow.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "undertow.mp3",
+    "creditSite": "https://www.scottbuckley.com.au"
   },
   {
     "title": "Sleep",
     "artist": "Scott Buckley",
     "id": "sleep",
     "page": "https://www.scottbuckley.com.au/library/sleep/",
-    "download": "https://www.scottbuckley.com.au/library/wp-content/uploads/2019/08/sb_sleep.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
-  },
-  {
-    "title": "Almost in F",
-    "artist": "Kevin MacLeod",
-    "id": "almost-in-f",
-    "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100394",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Almost%20in%20F.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "sleep.mp3",
+    "creditSite": "https://www.scottbuckley.com.au"
   },
   {
     "title": "Friday Morning",
     "artist": "Kevin MacLeod",
     "id": "friday-morning",
     "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100224",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Friday%20Morning.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
-  },
-  {
-    "title": "Peace of Mind",
-    "artist": "Kevin MacLeod",
-    "id": "peace-of-mind",
-    "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1200099",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Peace%20of%20Mind.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "friday-morning.mp3",
+    "creditSite": "https://incompetech.com"
   },
   {
     "title": "Dream Culture",
     "artist": "Kevin MacLeod",
     "id": "dream-culture",
     "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1300046",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Dream%20Culture.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "dream-culture.mp3",
+    "creditSite": "https://incompetech.com"
   },
   {
     "title": "Meditation Impromptu 01",
     "artist": "Kevin MacLeod",
     "id": "meditation-01",
     "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100163",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Meditation%20Impromptu%2001.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "meditation-01.mp3",
+    "creditSite": "https://incompetech.com"
   },
   {
     "title": "Meditation Impromptu 02",
     "artist": "Kevin MacLeod",
     "id": "meditation-02",
     "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100162",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Meditation%20Impromptu%2002.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "meditation-02.mp3",
+    "creditSite": "https://incompetech.com"
   },
   {
     "title": "Clear Air",
     "artist": "Kevin MacLeod",
     "id": "clear-air",
     "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN1100626",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Clear%20Air.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "clear-air.mp3",
+    "creditSite": "https://incompetech.com"
   },
   {
     "title": "Morning",
     "artist": "Kevin MacLeod",
     "id": "morning",
     "page": "https://incompetech.com/music/royalty-free/index.html?isrc=USUAN2300003",
-    "download": "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Morning.mp3",
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "morning.mp3",
+    "creditSite": "https://incompetech.com"
   },
   {
     "title": "November Lullaby",
     "artist": "Matthew C. Wright",
     "id": "november-lullaby",
     "page": "https://freemusicarchive.org/music/matthew-c-wright/gentle-acoustic-guitar-lakevale-drive/peaceful-royalty-free-guitar-november-lullaby/",
-    "download": null,
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "november-lullaby.mp3",
+    "creditSite": "https://www.matthewcwright.com"
   },
   {
-    "title": "A Visit to Virginia",
+    "title": "A Visit to Virginia / Last November (file tag)",
     "artist": "Matthew C. Wright",
     "id": "a-visit-to-virginia",
     "page": "https://freemusicarchive.org/music/matthew-c-wright/gentle-acoustic-guitar-lakevale-drive/calming-royalty-free-acoustic-guitar-a-visit-to-virginia/",
-    "download": null,
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "a-visit-to-virginia.mp3",
+    "creditSite": "https://www.matthewcwright.com",
+    "alternateSource": "https://freemusicarchive.org/music/matthew-c-wright/gentle-acoustic-guitar-lakevale-drive/beautiful-guitar-last-november/"
   },
   {
     "title": "Eastern Wind",
     "artist": "Matthew C. Wright",
     "id": "eastern-wind",
     "page": "https://freemusicarchive.org/music/matthew-c-wright/gentle-acoustic-guitar-lakevale-drive/dreamy-royalty-free-acoustic-guitar-eastern-wind/",
-    "download": null,
-    "license": "https://creativecommons.org/licenses/by/4.0/"
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "file": "eastern-wind.mp3",
+    "creditSite": "https://www.matthewcwright.com"
   }
 ]
