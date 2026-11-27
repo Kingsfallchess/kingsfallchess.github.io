@@ -38,6 +38,7 @@ public class MainActivity extends Activity {
     private static final String URL = "https://kingsfallchess.github.io/";
     private static final int PICK_FILE = 4001;
     private WebView web;
+    private BackgroundMusic music;
     private FrameLayout root;
     private View offline;
     private View startupSplash;
@@ -47,6 +48,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        music = new BackgroundMusic(this);
         getWindow().setStatusBarColor(Color.rgb(27, 2, 8));
         getWindow().setNavigationBarColor(Color.rgb(27, 2, 8));
         root = new FrameLayout(this);
@@ -66,7 +68,8 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " KingsfallAndroid/1 KingsfallLeaguePush/1");
+        settings.setUserAgentString(settings.getUserAgentString() + " KingsfallAndroid/1 KingsfallLeaguePush/1 KingsfallLocalMusic/1");
+        web.addJavascriptInterface(new MusicPreferenceBridge(), "KingsfallMusic");
         CookieManager.getInstance().setAcceptCookie(true);
 
         web.setWebChromeClient(new WebChromeClient() {
@@ -108,6 +111,18 @@ public class MainActivity extends Activity {
         });
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) {
             web.loadUrl(URL);
+        }
+    }
+
+    // This bridge exposes only a non-sensitive, device-local music preference.
+    private final class MusicPreferenceBridge {
+        @android.webkit.JavascriptInterface public boolean isEnabled() { return music.isEnabled(); }
+        @android.webkit.JavascriptInterface public boolean hasPreference() { return music.hasPreference(); }
+        @android.webkit.JavascriptInterface public void setEnabled(boolean enabled) {
+            runOnUiThread(() -> {
+                if (!isDestroyed() && web != null && web.getUrl() != null
+                        && web.getUrl().startsWith(URL)) music.setEnabled(enabled);
+            });
         }
     }
 
@@ -227,14 +242,18 @@ public class MainActivity extends Activity {
     @Override protected void onPause() {
         super.onPause();
         web.onPause();
+        if (music != null) music.onPause();
     }
     @Override protected void onResume() {
         super.onResume();
         web.onResume();
+        if (music != null) music.onResume();
     }
     @Override protected void onDestroy() {
         if (fileCallback != null) fileCallback.onReceiveValue(null);
         splashHandler.removeCallbacksAndMessages(null);
+        if (music != null) music.close();
+        web.removeJavascriptInterface("KingsfallMusic");
         root.removeView(web);
         web.destroy();
         super.onDestroy();
