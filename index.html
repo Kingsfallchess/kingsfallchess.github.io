@@ -2295,6 +2295,11 @@ html.kf-native-app.kf-fa .mode-arrow::after {transform:rotate(-45deg)}
     <input id="profileName" type="text" minlength="3" maxlength="20" required autocomplete="nickname" placeholder="Choose a username">
     <p class="hint">Use 3–20 letters, numbers, spaces, underscores or hyphens.</p>
     <label class="kf-country-toggle"><input id="profileFlagEnabled" type="checkbox"> Show my country flag on my profile</label>
+    <section id="kfMusicControl" hidden style="border:1px solid var(--line2);border-radius:10px;padding:10px;margin:10px 0">
+      <label class="kf-country-toggle" style="display:flex;align-items:center;gap:8px"><input id="kfMusicEnabled" type="checkbox" role="switch" checked> <span id="kfMusicLabel">Background music</span></label>
+      <div id="kfMusicStatus" style="font-size:12px;color:var(--muted)" aria-live="polite"></div>
+      <details id="kfMusicCredits" style="font-size:12px;color:var(--muted);margin-top:6px"><summary id="kfMusicCreditsTitle">Music credits</summary><ul id="kfMusicCreditList"></ul></details>
+    </section>
     <button class="btn gold submit" type="submit" id="profileSave">Save profile</button>
     <div id="profileMessage"></div>
   </form>
@@ -2669,6 +2674,7 @@ async function startKingsfall(){
   window.Chess = KingsfallChess;
   const kingsfallChunks = ["assets/core-start.js","assets/vip.js?v=gray-gold1","assets/core-game.js?v=vip-currency1","assets/analysis.js?v=c4a3fd5","assets/core-final.js?v=vip-grants1","assets/push-onboarding.js?v=profile-push1","assets/chat.js","assets/i18n.js?v=fa1"];
   for(const source of kingsfallChunks) await loadScript(source);
+  if(window.kfIsNativeApp) loadScript("assets/game-music.js?v=2").catch(()=>{});
 }
 const notice = document.getElementById("kfTabMessage");
 const retry = document.getElementById("kfTabRetry");
