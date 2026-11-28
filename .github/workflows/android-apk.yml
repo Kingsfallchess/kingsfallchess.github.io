@@ -34,8 +34,11 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin 90ea8806bdb866db20d1eb919342768a130e1718
           git show FETCH_HEAD:KingsfallChess-v1.3.2.apk > /tmp/kingsfall-1.3.2.apk
-          echo "df7d163d7a29a1769e33ae295392ba9f77ec7ebc2c89e615ddfb80bab8bff08a  /tmp/kingsfall-1.3.2.apk" | sha256sum -c -
+          test "$(git hash-object /tmp/kingsfall-1.3.2.apk)" = "951d1874afcb68e26a56966bafa5661283078a81"
           unzip -q -o /tmp/kingsfall-1.3.2.apk 'assets/offline/*' 'assets/analysis-book.js' 'assets/openings-v1.json' -d /tmp/kf-old-assets
+          cd /tmp/kf-old-assets
+          sha256sum assets/offline/* assets/analysis-book.js assets/openings-v1.json
+          cd -
           cp -a /tmp/kf-old-assets/assets/. android-app/app/src/main/assets/
       - name: Assemble debug APK
         working-directory: android-app
