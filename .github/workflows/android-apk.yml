@@ -33,6 +33,21 @@ jobs:
       - name: Assemble debug APK
         working-directory: android-app
         run: gradle :app:assembleDebug --no-daemon
+      - name: Assemble unsigned release APK and collect Android signing tools
+        working-directory: android-app
+        run: |
+          gradle :app:assembleRelease --no-daemon
+          mkdir -p build/release-signing
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          cp "$tools/lib/apksigner.jar" build/release-signing/
+          cp "$tools/zipalign" build/release-signing/
+          cp app/build/outputs/apk/release/app-release-unsigned.apk build/release-signing/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KingsfallChess-unsigned-release
+          path: android-app/build/release-signing/
+          if-no-files-found: error
+          retention-days: 3
       - uses: actions/upload-artifact@v4
         with:
           name: KingsfallChess-Android-debug
