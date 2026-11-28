@@ -13,6 +13,8 @@ import android.widget.ImageView;
 import android.os.Handler;
 import android.os.Looper;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.webkit.WebResourceResponse;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -31,6 +33,8 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private static final String URL = "https://kingsfallchess.github.io/";
+    private static final String OFFLINE_GAME = URL + "__apk/offline/index.html";
+    private static final String OFFLINE_PATH = "/__apk/offline/";
     private static final int PICK_FILE = 4001;
     private WebView web;
     private BackgroundMusic music;
@@ -63,7 +67,7 @@ public class MainActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setUserAgentString(settings.getUserAgentString() + " KingsfallAndroid/1 KingsfallLocalMusic/1");
+        settings.setUserAgentString(settings.getUserAgentString() + " KingsfallAndroid/2 KingsfallLocalMusic/1");
         web.addJavascriptInterface(new MusicPreferenceBridge(), "KingsfallMusic");
         CookieManager.getInstance().setAcceptCookie(true);
 
@@ -83,6 +87,36 @@ public class MainActivity extends Activity {
             }
         });
         web.setWebViewClient(new WebViewClient() {
+            @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                if (!"GET".equals(request.getMethod()) || !"https".equals(uri.getScheme()) ||
+                        !"kingsfallchess.github.io".equals(uri.getHost())) return null;
+                String path = uri.getPath();
+                if (path == null) return null;
+                String asset = null, mime = null;
+                if (path.startsWith(OFFLINE_PATH)) {
+                    String name = path.substring(OFFLINE_PATH.length());
+                    switch (name) {
+                        case "index.html": mime = "text/html"; break;
+                        case "chess.js": case "game.js": case "stockfish-19-lite-single.js": mime = "application/javascript"; break;
+                        case "stockfish-19-lite-single.wasm": mime = "application/wasm"; break;
+                        case "pieces.svg": mime = "image/svg+xml"; break;
+                        default: return null;
+                    }
+                    asset = "offline/" + name;
+                } else if ("/__apk/openings-v1.json".equals(path)) {
+                    asset = "openings-v1.json"; mime = "application/json";
+                } else if ("/assets/analysis.js".equals(path) && "c4a3fd5".equals(uri.getQueryParameter("v"))) {
+                    asset = "analysis-book.js"; mime = "application/javascript";
+                }
+                if (asset == null) return null;
+                try {
+                    return new WebResourceResponse(mime, "application/wasm".equals(mime) ? null : "UTF-8", getAssets().open(asset));
+                } catch (java.io.IOException error) {
+                    android.util.Log.w("Kingsfall", "Missing bundled asset", error);
+                    return null;
+                }
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 if (!request.isForMainFrame()) return false;
                 Uri target = request.getUrl();
@@ -93,15 +127,24 @@ public class MainActivity extends Activity {
                 return true;
             }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) { showOffline(); dismissStartupSplash(); }
+                if (request.isForMainFrame() && !request.getUrl().toString().startsWith(URL + "__apk/")) { view.loadUrl(OFFLINE_GAME); dismissStartupSplash(); }
             }
             @Override public void onPageFinished(WebView view, String url) {
-                if (url.startsWith(URL)) { hideOffline(); dismissStartupSplash(); }
+                if (url.startsWith(URL)) { hideOffline(); dismissStartupSplash(); if (!url.startsWith(URL + "__apk/")) addOfflineLinks(); }
             }
         });
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) {
-            web.loadUrl(URL);
+            web.loadUrl(hasNetwork() ? URL : OFFLINE_GAME);
         }
+    }
+
+    private boolean hasNetwork() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        return cm != null && cm.getActiveNetwork() != null;
+    }
+
+    private void addOfflineLinks() {
+        web.evaluateJavascript("(function(){for (const box of document.querySelectorAll('#authForm,.computer-panel')) {if (box.querySelector('[data-offline-game]')) continue;const a=document.createElement('a');a.dataset.offlineGame='';a.className='btn gold';a.href='/__apk/offline/index.html';a.style.cssText='display:inline-block;margin-top:10px';const label=()=>a.textContent=document.documentElement.lang==='fa'?'بازی آفلاین با کامپیوتر':'Play computer offline';label();new MutationObserver(label).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});box.append(a);}})()", null);
     }
 
     // This bridge exposes only a non-sensitive, device-local music preference.
